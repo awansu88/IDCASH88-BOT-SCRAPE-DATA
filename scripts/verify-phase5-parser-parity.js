@@ -121,7 +121,10 @@ function compareRejections(name, legacy, raw, expected) {
 
   // O: valid empty table.
   result = await parseBoth(fixture('empty.html'));
-  assert.deepStrictEqual(result.legacy, { transactions: [], rejections: [], rowsDetected: 0 });
+  assert.deepStrictEqual(result.legacy.transactions, []);
+  assert.deepStrictEqual(result.legacy.rejections, []);
+  assert.strictEqual(result.legacy.rowsDetected, 0);
+  assert.strictEqual(result.legacy.trusted, true);
   assert.strictEqual(result.raw.transactions.length, 0); assert.strictEqual(result.raw.rejections.length, 0);
   assert.strictEqual(result.raw.classification, C.EMPTY_DEPOSIT_TABLE);
 
@@ -145,10 +148,11 @@ function compareRejections(name, legacy, raw, expected) {
   // S: explicitly freeze intentional Raw semantic-header safety divergence.
   html = base.replace(/<th>[^<]*<\/th>/g, '<th>Unrelated</th>');
   result = await parseBoth(html);
-  assert.strictEqual(result.legacy.transactions.length, 1);
-  assert.strictEqual(result.raw.transactions.length, 1); // diagnostic row retained, page remains unsafe
+  assert.strictEqual(result.legacy.transactions.length, 0);
+  assert.strictEqual(result.raw.transactions.length, 0);
+  assert.strictEqual(result.legacy.trusted, false);
   compareTransactions('Case S — transaction semantics before page trust', result.legacy.transactions, result.raw.transactions);
-  assert.strictEqual(result.raw.classification, C.UNKNOWN_LAYOUT, 'Case S — INTENTIONAL_RAW_STRICTER_DIVERGENCE');
+  assert.strictEqual(result.raw.classification, C.UNKNOWN_LAYOUT, 'Case S — both modes reject unverified header structure');
 
   // T + production-freeze/security/wiring guards.
   const read = file => fs.readFileSync(path.join(root, file), 'utf8');
@@ -156,12 +160,16 @@ function compareRejections(name, legacy, raw, expected) {
   const canonicalHash = source => crypto.createHash('sha256').update(canonicalSource(source), 'utf8').digest('hex');
   assert.strictEqual(canonicalHash('a\nb\n'), canonicalHash('a\r\nb\r\n'), 'canonical hashes must ignore checkout line endings');
   assert.notStrictEqual(canonicalHash('const x = 1;\n'), canonicalHash('const x = 2;\n'), 'canonical hashes must detect source changes');
-  assert(/import \{[\s\S]*DEPOSIT_TABLE_LAYOUTS[\s\S]*\} from ['"]\.\.\/sources\/deposit-table-layouts['"]/.test(read('src/main/services/html-mapper.ts')));
+  assert(read('src/main/services/html-mapper.ts').includes('parseDepositDocument'));
+  assert(read('src/main/sources/raw-http-html-parser.ts').includes('parseDepositDocument'));
+  assert(read('src/main/sources/deposit-page-parser.ts').includes('resolveDepositColumns'));
   const frozenHashes = {
-    'src/main/sources/deposit-table-layouts.ts':'f91b96e7de840e47281dc5ab1ca45990cd16fab983ebc184c6382abde1dca67e',
-    'src/main/services/html-mapper.ts':'b4d61badb08db8e640d6868f46c7184881960010bf4dfd3a2dd327d10cb7965b',
-    'src/main/sources/raw-http-html-parser.ts':'a38c495d944d2482dc75eddcb4a0196874f32f4c49717e65398fdece28b6df4c',
-    'src/main/services/fingerprint-generator.ts':'e1a6764de4fb56e7c9e33609b05d7c715f7b9987a164622a360f16be2167b1f2'
+    'src/main/sources/deposit-page-parser.ts': 'e6573ef210032b6d5d80e17cc0b5f2162472329dcfd0b294d57e6c07c7d44b45',
+    'src/main/sources/deposit-column-resolver.ts': '44c63370864c602a330d83810b3c1ff4bb456e95c8a4a4a47ed8aa4b18383bbe',
+    'src/main/sources/deposit-table-layouts.ts': 'f91b96e7de840e47281dc5ab1ca45990cd16fab983ebc184c6382abde1dca67e',
+    'src/main/services/html-mapper.ts': 'ef1730c222bbc45d29ffc9d0eb1c84203fc7ecd955724ed281aa4f875d0777a1',
+    'src/main/sources/raw-http-html-parser.ts': 'b6ea15f76bdb299827369a0639a86f76265641ebe4349dc79b200c39417a7a68',
+    'src/main/services/fingerprint-generator.ts': '624ae907bfa7c9f42d5cd64033587eca39ca49654fc21b4dfc7269309a26f257'
   };
   for (const [file, expected] of Object.entries(frozenHashes)) assert.strictEqual(canonicalHash(read(file)), expected, `${file} changed from verified parser baseline`);
   for (const file of ['src/main/services/monitoring-engine.ts','src/main/sources/legacy-browser-source-adapter.ts']) assert(!read(file).includes('RawHttpHtmlParser'), `${file} must not wire RawHttpHtmlParser`);
@@ -172,5 +180,5 @@ function compareRejections(name, legacy, raw, expected) {
   for (const forbidden of [/\bfetch\s*\(/,/from ['"]axios['"]/,/\bcontext\.request\b/,/\bbrowserContext\.request\b/,/\/deposit\/transactions/]) assert(!forbidden.test(production), `forbidden HTTP API ${forbidden}`);
 
   console.log('Phase 5 parser parity passed (Cases A-T).');
-  console.log('Intentional results: CANONICAL_ACCOUNT_PARITY; INTENTIONAL_RAW_STRICTER_DIVERGENCE.');
+  console.log('Intentional results: CANONICAL_ACCOUNT_PARITY; SHARED_FAIL_CLOSED_PAGE_TRUST.');
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

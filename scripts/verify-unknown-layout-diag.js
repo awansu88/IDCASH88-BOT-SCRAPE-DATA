@@ -1,10 +1,4 @@
-// Verify the rich diagnostic emitted for an unknown production layout.
-// A synthetic 17H/18B row must be rejected AND the rejection must carry:
-//   • headerLabels (raw thead)
-//   • cellTexts    (every <td>)
-//   • rowOuterHTML (the raw <tr>)
-// exactly as the operator requested, so future layouts can be added
-// without touching diagnostics.
+// Verify structural diagnostics for unknown layouts without transaction values or raw HTML.
 
 const { chromium } = require('playwright');
 const path = require('path');
@@ -67,16 +61,19 @@ const html = `<!doctype html><html><body>
   push('zero transactions', result.transactions.length === 0);
   const rej = result.rejections[0] || {};
   push('rejection reason mentions unknown layout',
-    (rej.reason || '').includes('Unknown production layout') && (rej.reason || '').includes('body=18'));
+    (rej.reason || '').includes('Unknown production layout') && rej.cellCount === 18);
   push('rejection.headerLabels has 17 entries', (rej.headerLabels || []).length === 17);
-  push('rejection.cellTexts has 18 entries', (rej.cellTexts || []).length === 18);
-  push('rejection.rowOuterHTML contains <tr', (rej.rowOuterHTML || '').startsWith('<tr'));
+  push('rejection excludes cell values', !('cellTexts' in rej));
+  push('rejection excludes raw HTML', !('rowOuterHTML' in rej));
 
-  // Verify the diag output carried every header label + body cell + <tr> HTML.
+  // Verify sanitized counts, code, strategy and approved identities are actionable.
   const diagText = captured.filter(c => c[0] === 'DIAG').map(c => c.slice(1).join(' ')).join('\n');
-  push('diag prints all 17 header labels', /H\[17\]/.test(diagText));
-  push('diag prints all 18 body cells',    /B\[18\]/.test(diagText));
-  push('diag prints raw <tr> outerHTML',   diagText.includes('Raw <tr> outerHTML'));
+  push('diag prints header count', diagText.includes('"headerCount":17'));
+  push('diag prints normalized identities', diagText.includes('ACCOUNT_NUMBER'));
+  push('diag prints body count', diagText.includes('"bodyCounts":[18]'));
+  push('diag prints schema failure code', diagText.includes('UNKNOWN_LAYOUT'));
+  push('diag excludes raw HTML and transaction values', !/<tr|user1|bank1|name1|0000-000-0001|ext-uuid|extra-1|Unrecognised-11/.test(diagText));
+  push('page explicitly untrusted', result.trusted === false);
 
   let failed = 0;
   for (const a of asserts) {

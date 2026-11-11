@@ -23,7 +23,7 @@ export class FingerprintGenerator {
     ].join('|');
     
     const fingerprint = crypto.createHash('sha1').update(input, 'utf8').digest('hex');
-    getLogger().diag(`Fingerprint: ${fingerprint} from: ${input}`);
+    getLogger().diag(`Fingerprint: ${fingerprint}`);
     
     return fingerprint;
   }

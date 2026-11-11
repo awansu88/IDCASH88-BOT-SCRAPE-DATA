@@ -11,6 +11,7 @@ function createCheerioPage(html) {
     evaluate(callback) { return Promise.resolve(callback(snapshot(node))); }
   });
   return {
+    content() { return Promise.resolve(html); },
     $$(selector) { return Promise.resolve($(selector).toArray().map(handle)); },
     $$eval(selector, callback) { return Promise.resolve(callback($(selector).toArray().map(snapshot))); }
   };

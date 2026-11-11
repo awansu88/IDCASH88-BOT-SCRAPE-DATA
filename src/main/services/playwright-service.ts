@@ -199,12 +199,12 @@ export class PlaywrightService {
     if (!this.page) throw new Error('Browser not launched');
     
     const logger = getLogger();
-    logger.info(`Navigating to deposit page: ${depositUrl}`);
+    logger.info('Navigating to deposit page');
     try {
       await this.page.goto(depositUrl, { waitUntil: 'networkidle', timeout: 30000 });
       await this.page.waitForSelector(SELECTORS.TABLE.MAIN, { state: 'visible', timeout: 10000 });
     } catch (error: any) {
-      logger.error(`Failed to load deposit page (${depositUrl})`, error);
+      logger.error('Failed to load deposit page');
       throw error;
     }
   }
@@ -294,7 +294,6 @@ export class PlaywrightService {
         `Auto Target    : ${today}`,
         `Agent          : ${filter.agent || '(any)'}`,
         `Deposit Type   : ${filter.depositType || '(any)'}`,
-        `Current URL    : ${this.page.url()}`,
         '--------------------------------------------------'
       ].join('\n')
     );
@@ -368,7 +367,7 @@ export class PlaywrightService {
       try {
         await this.page.waitForSelector(SELECTORS.TABLE.MAIN, { state: 'visible', timeout: 10000 });
       } catch (error: any) {
-        logger.error(`Search result timeout: deposit table did not appear within 10s (selector "${SELECTORS.TABLE.MAIN}")`, error);
+        logger.error(`Search result timeout: deposit table did not appear within 10s (selector "${SELECTORS.TABLE.MAIN}")`);
         throw error;
       }
       await this.page.waitForTimeout(1000);
@@ -380,7 +379,7 @@ export class PlaywrightService {
       // [FILTER PROFILE] warning) and re-throw so the engine can move
       // to the next enabled profile without treating it as a bug.
       if (error && (error as any).isProfileUnavailable) throw error;
-      logger.error(`Failed to apply filter: ${label}`, error);
+      logger.error(`Failed to apply filter: ${label}`);
       // Preserve the CYCLE-FATAL tag so the engine can abort the cycle
       // instead of moving on to the next filter with a broken search state.
       if (error && (error as any).isCycleFatal) throw error;
@@ -404,13 +403,13 @@ export class PlaywrightService {
     try {
       await this.page.fill(SELECTORS.FILTER.AGENT_INPUT, '', { timeout: 2000 });
     } catch (e: any) {
-      logger.debug(`Agent field reset skipped: ${e?.message || e}`);
+      logger.debug('Agent field reset skipped');
     }
     try {
       // Force back to the engine's invariant: only Approved rows are monitored.
       await this.page.selectOption(SELECTORS.FILTER.DEPOSIT_STATUS, 'Approve', { timeout: 2000 });
     } catch (e: any) {
-      logger.debug(`Status reset skipped: ${e?.message || e}`);
+      logger.debug('Status reset skipped');
     }
     try {
       // Clear deposit-type to its default option. selectOption('') selects
@@ -420,7 +419,7 @@ export class PlaywrightService {
       try {
         await this.page.selectOption(SELECTORS.FILTER.DEPOSIT_TYPE, { index: 0 }, { timeout: 2000 });
       } catch (e: any) {
-        logger.debug(`Deposit type reset skipped: ${e?.message || e}`);
+        logger.debug('Deposit type reset skipped');
       }
     }
   }
@@ -535,7 +534,7 @@ export class PlaywrightService {
       return null;
     } catch (e: any) {
       getLogger().warn(
-        `Deposit Type availability probe failed for "${target}" — treating as NOT AVAILABLE. ${e?.message || e}`
+        `Deposit Type availability probe failed for "${target}" — treating as NOT AVAILABLE.`
       );
       return null;
     }

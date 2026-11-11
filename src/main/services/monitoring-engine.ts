@@ -509,10 +509,10 @@ export class MonitoringEngine {
           if (error?.isCycleFatal || concurrency > 1) {
             groupAbortRequested = true;
             fatalError ??= error;
-            getLogger().error(`Cycle aborted (fatal): ${filter.name} — ${error?.message || error}`);
+            getLogger().error(`Cycle aborted (fatal): ${filter.name}`, this.safeError(error));
             return;
           }
-          getLogger().error(`Filter error: ${filter.name}`, error);
+          getLogger().error(`Filter error: ${filter.name}`, this.safeError(error));
         }
       }
     };
@@ -710,10 +710,6 @@ export class MonitoringEngine {
           `Filter Profile: ${filter.name}`,
           '--------------------------------',
           `Transaction #${this.cycleCounters.parsed}`,
-          `User    : ${raw.userName || '(blank)'}`,
-          `Account : ${raw.accountNumber || '(blank)'}`,
-          `Amount  : ${raw.amount}`,
-          `Process : ${raw.processDate || '(blank)'}`,
           `Result  : REJECTED`,
           `Reason  : ${result.errors.join(', ')}`,
           '--------------------------------'
@@ -722,7 +718,7 @@ export class MonitoringEngine {
       return 'REJECTED';
     }
     this.cycleCounters.validated++;
-    getLogger().diag(`Transaction validated: user=${raw.userName} amount=${raw.amount}`);
+    getLogger().diag(`Transaction validated: essential fields present`);
     this.cycleCounters.fingerprintsCreated++;
 
     if (result.status === 'DUPLICATE') {

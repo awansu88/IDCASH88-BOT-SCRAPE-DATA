@@ -2,6 +2,7 @@ import { Page } from 'playwright';
 import { RawTransaction } from '../../types/transaction';
 import { FilterProfile } from '../../types/filter-profile';
 import { HTMLMapper } from './html-mapper';
+import { depositDiagnostics, RawHttpResponseClassification } from '../sources/deposit-page-parser';
 import { SELECTORS } from '../../utils/selector-repository';
 import { getLogger } from './logger-service';
 import { extractPageNumber, urlHasPageMarker } from '../../utils/date-utils';
@@ -106,6 +107,15 @@ export class PageScanner {
       
       // Parse rows
       const parse = await this.htmlMapper.parseCurrentPage();
+      if (parse.trusted !== true) {
+        // Reject the entire current page BEFORE duplicate checks, onPage, or navigation.
+        // Earlier trusted pages stay in the aggregate/durable handoff contract.
+        logger.warn(`Untrusted deposit page=${currentBrowserPage} ${JSON.stringify(depositDiagnostics(parse, { pageNumber: currentBrowserPage, profileId: filter.id || filter.name }))}`);
+        navigationFailure = true;
+        terminationReason = parse.snapshotFailed ? 'BROWSER_FAILURE'
+          : parse.classification === RawHttpResponseClassification.LOGIN_PAGE ? 'SESSION_EXPIRED' : 'UNSAFE_RESPONSE';
+        break;
+      }
       logger.info(`Rows found on page ${currentBrowserPage}: ${parse.transactions.length}`);
       
       // Diagnostic block: Table
@@ -116,7 +126,6 @@ export class PageScanner {
           `Current Page  : ${currentBrowserPage}`,
           `URL Page      : ${urlPage ?? '(no marker)'}`,
           `DOM Page      : ${domPage ?? '(not found)'}`,
-          `Current URL   : ${currentUrl}`,
           `Rows Detected : ${parse.rowsDetected}`,
           `Rows Parsed   : ${parse.transactions.length}`,
           `Rows Rejected : ${parse.rejections.length}`,
@@ -233,7 +242,7 @@ export class PageScanner {
           terminationReason = 'END_OF_PAGINATION';
           break;
         }
-        logger.error(`Pagination failed while moving to page ${expected}`, error);
+        logger.error(`Pagination failed while moving to page ${expected}`);
         navigationFailure = true;
         terminationReason = error && error.browserFailure === true
           ? 'BROWSER_FAILURE'
@@ -242,9 +251,8 @@ export class PageScanner {
       }
     }
     
-    logger.success(
-      `Pagination completed: scanned ${scanned} page(s), found ${allTransactions.length} new transaction(s)`
-    );
+    if (navigationFailure) logger.warn(`Pagination aborted: reason=${terminationReason} trustedPages=${scanned}`);
+    else logger.success(`Pagination completed: scanned ${scanned} page(s), found ${allTransactions.length} new transaction(s)`);
     
     return {
       transactions: allTransactions,
@@ -370,7 +378,7 @@ export class PageScanner {
         }
       );
     } catch (e) {
-      getLogger().warn('Failed to inspect pagination Next button', e);
+      getLogger().warn('Failed to inspect pagination Next button');
       return false;
     }
   }
@@ -514,8 +522,6 @@ export class PageScanner {
     const diagBlock = [
       '--------------------------------------------------',
       'PAGINATION DIAGNOSTIC',
-      'Current Browser URL',
-      actualUrl,
       `Expected Page   : ${expected}`,
       `URL Page        : ${urlPage ?? '(no marker)'}`,
       `DOM Widget Page : ${domPage ?? '(not found)'}`,
@@ -540,7 +546,7 @@ export class PageScanner {
         (urlPage === null || urlPage === fromPage) &&
         actualUrl === fromUrl;
       logger.error(
-        `Navigation verification failed. Expected page ${expected}, URL=${urlPage ?? 'n/a'}, DOM=${domPage ?? 'n/a'}. URL: ${actualUrl}`
+        `Navigation verification failed. Expected page ${expected}, URL=${urlPage ?? 'n/a'}, DOM=${domPage ?? 'n/a'}.`
       );
       if (pagerStuck) {
         const err: any = new Error(
@@ -550,7 +556,7 @@ export class PageScanner {
         throw err;
       }
       const err: any = new Error(
-        `Navigation verification failed: expected ${expected}, urlPage=${urlPage ?? 'n/a'}, domPage=${domPage ?? 'n/a'} (${actualUrl})`
+        `Navigation verification failed: expected ${expected}, urlPage=${urlPage ?? 'n/a'}, domPage=${domPage ?? 'n/a'}`
       );
       err.isCycleFatal = true;
       throw err;

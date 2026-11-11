@@ -92,6 +92,7 @@ function driveScanner(scanner, pages, state) {
     parseCurrentPage: async () => {
       const p = pages[state.currentIdx] || { transactions: [] };
       return {
+        trusted: true,
         transactions: p.transactions,
         rejections: p.rejections || [],
         rowsDetected: p.rowsDetected != null ? p.rowsDetected : p.transactions.length,

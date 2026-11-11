@@ -51,9 +51,21 @@ const frozenBackend = [
   'src/main/ipc-handlers.ts',
   'src/main/preload.ts',
 ];
-// Phase 1 DOM compatibility explicitly extends only the shared layout registry.
-assert(!changed.some(file => frozenBackend.includes(file) ||
-  (file.startsWith('src/main/sources/') && file !== 'src/main/sources/deposit-table-layouts.ts')));
+// Phase 2 authorizes shared parsing, fail-safe acquisition and diagnostic redaction.
+// Pin those exact reviewed implementations while retaining all other restrictions.
+const phase2Baselines = {
+  "src/main/services/monitoring-engine.ts": "abca158bcb6a64ac07c6aed04b972d2e678a0a80d6159a4fe6f8f54b46627dc5",
+  "src/main/sources/raw-http-html-parser.ts": "b6ea15f76bdb299827369a0639a86f76265641ebe4349dc79b200c39417a7a68",
+  "src/main/sources/fast-http-source-adapter.ts": "ac2cf0d7b93e74f995c36c8b2b7726ba2bb82154708dd76f24c613ffc3bca33d",
+  "src/main/sources/deposit-column-resolver.ts": "44c63370864c602a330d83810b3c1ff4bb456e95c8a4a4a47ed8aa4b18383bbe",
+  "src/main/sources/deposit-page-parser.ts": "e6573ef210032b6d5d80e17cc0b5f2162472329dcfd0b294d57e6c07c7d44b45"
+};
+for (const [file, expected] of Object.entries(phase2Baselines)) {
+  assert.strictEqual(require('crypto').createHash('sha256').update(
+    fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/\r\n/g, '\n')).digest('hex'), expected);
+}
+assert(!changed.some(file => !phase2Baselines[file] && (frozenBackend.includes(file) ||
+  (file.startsWith('src/main/sources/') && file !== 'src/main/sources/deposit-table-layouts.ts'))));
 assert(!changed.some(file => /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$/.test(file)));
 assert(!changed.some(file => /(^|\/)(schema|schemas|migrations)(\/|$)/i.test(file)));
 
