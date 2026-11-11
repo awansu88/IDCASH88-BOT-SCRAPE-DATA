@@ -125,9 +125,13 @@ assert.strictEqual(parser.parse(fixture('empty.html'), { expectedPageNumber: 1 }
 
 // Case AD: Legacy imports this exact shared complete map, eliminating drift.
 const mapper = fs.readFileSync(path.join(root, 'src/main/services/html-mapper.ts'), 'utf8');
-assert(/import \{[\s\S]*DEPOSIT_TABLE_LAYOUTS[\s\S]*\} from ['"]\.\.\/sources\/deposit-table-layouts['"]/.test(mapper));
+assert(mapper.includes('parseDepositDocument'));
+const shared = fs.readFileSync(path.join(root, 'src/main/sources/deposit-page-parser.ts'), 'utf8');
+assert(shared.includes('resolveDepositColumns'));
+assert(fs.readFileSync(path.join(root, 'src/main/sources/deposit-column-resolver.ts'), 'utf8').includes('findDepositTableLayout'));
 const columns = ['SEQUENCE','USER_NAME','BANK','ACCOUNT_NAME','ACCOUNT_NUMBER','PAYMENT_ID','CURRENCY','AMOUNT','STATUS','EXTERNAL_ID','DONE','DEPOSIT_TYPE','PAYMENT_TYPE','AGENT','PROCESS_DATE','CREATED_AT'];
 const expectedMaps = {
+  '18/16': [0,1,2,3,4,6,7,8,9,10,11,12,OMITTED_COLUMN,13,14,15],
   '17/15': [0,1,2,3,4,5,6,7,8,9,10,11,OMITTED_COLUMN,12,13,14],
   '16/16': [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
   '16/15': [0,1,2,3,4,5,6,7,8,9,10,11,OMITTED_COLUMN,12,13,14]

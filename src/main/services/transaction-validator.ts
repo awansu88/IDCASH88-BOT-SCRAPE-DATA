@@ -38,8 +38,7 @@ export class TransactionValidator {
 
     if (errors.length > 0) {
       getLogger().debug(
-        `Essential-field check failed: ${errors.join(', ')} — ` +
-        `user=${transaction.userName} acc=${transaction.accountNumber}`
+        `Essential-field check failed: ${errors.join(', ')}`
       );
     }
 

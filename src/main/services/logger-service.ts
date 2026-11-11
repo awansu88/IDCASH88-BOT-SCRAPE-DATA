@@ -59,6 +59,12 @@ export class LoggerService {
     });
   }
   
+  /** Explicit cleanup for short-lived isolated validation; production lifetime is unchanged. */
+  async close(): Promise<void> {
+    await new Promise<void>(resolve => { this.logger.once('finish', resolve); this.logger.end(); });
+    this.logger.close();
+  }
+
   info(message: string, meta?: any): void {
     const sanitized = this.sanitize(meta);
     this.logger.info(message, sanitized);

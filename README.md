@@ -177,30 +177,41 @@ Type, Agent) are captured when present but are **not** re-validated —
 those decisions belong to the browser filter.
 
 ### Production HTML Assumptions
-This scraper targets one known production deposit panel, not arbitrary
-HTML tables. The parser:
 
-- Resolves canonical columns from the fixed `<thead>` labels for
-  reporting purposes.
-- Maps body cells to canonical columns via an **explicit production
-  layout registry** (`PRODUCTION_LAYOUTS` in `src/main/services/html-mapper.ts`).
-  Every legitimate `(headerCount, bodyCount)` shape has a hard-coded
-  entry describing which body index maps to which canonical column.
-- Fails fast on any unknown `(headerCount, bodyCount)` combination.
-  The rejection diagnostic prints every header label, every body cell,
-  and the raw `<tr>` outerHTML so the layout can be added explicitly
-  without heuristics.
+Browser and Fast HTTP acquisition share one pure deposit parser. The browser
+reads one consistent HTML snapshot; both modes then resolve body-cell identities
+from exact normalized `data-label` values and verified semantic classes or
+attributes. Known aliases include `Done`/`Done?` and `User Name`/`Username`.
+Header indexes are never assumed to equal body indexes.
 
-Currently supported layouts:
+Unlabeled cells may use the shared layout registry only after critical header
+identities and body evidence validate that layout. A matching cell count cannot
+override contradictory semantic evidence. Unknown layouts require unambiguous
+semantic identification of every essential field. Duplicate field ownership and
+conflicting canonical account-number attributes fail closed.
 
 | Layout | Header count | Body count | Notes |
 |---|---|---|---|
-| Modern production row | 17 | 15 | Server omits Payment Type (H13) and trailing verification column (H17). |
-| Legacy full row | 16 | 16 | Older panel build; all columns emitted. |
-| Legacy short row | 16 | 15 | Older panel build; Payment Type omitted. |
+| Modern production row | 17 | 15 | Payment Type and trailing audit cell omitted. |
+| Legacy full row | 16 | 16 | All body columns emitted. |
+| Legacy short row | 16 | 15 | Payment Type omitted. |
+| Destination row | 18 | 16 | Destination at body index 5; Payment Type omitted. |
 
-To add a new layout, add one entry to `PRODUCTION_LAYOUTS`; no other
-file needs editing.
+Whitespace-only placeholders are silently skipped regardless of their cell
+count. A schema mismatch or malformed transaction makes the whole current page
+unsafe: it is excluded from ingest/export, duplicate-page decisions, and further
+pagination. Trusted prior pages retain the existing durable processing contract.
+Schema failures pause monitoring through `UNSAFE_RESPONSE`; they are not login
+failures. Missing tables and snapshot failures are never treated as valid empty
+results. Empty results require recognizable table structure.
+
+Diagnostics contain structural counts, canonical labels, error codes, missing or
+conflicting field identities, resolver strategy and layout signature. They do
+not include raw transaction HTML, account values, usernames, or sensitive URLs.
+Future aliases and layout changes should be backed by sanitized fixtures and
+parser/acquisition regressions. See [Phase 2 validation](docs/phase2-adaptive-deposit-validation.md)
+for the trust contract, exact test results, performance comparison, and known
+baseline failures.
 
 ## 🗂️ Application Data
 
@@ -277,3 +288,12 @@ MIT License
 - Never logs credentials, tokens, or sensitive data
 - Service account credentials stored locally (never transmitted)
 - Read-only operations on web panel (no writes)
+
+
+## Controlled Windows validation
+
+Run `npm test` for build/typecheck and all package suites. The opt-in standalone
+`npm run validate:read-only -- --help` workflow constructs no database/export engine.
+Follow the [Windows Phase 3 runbook](docs/phase3-windows-live-validation.md) only after
+independent review; production Start Monitoring is not a dry-run. Native Windows
+packaging/execution and controlled live-panel checks remain separate release gates.

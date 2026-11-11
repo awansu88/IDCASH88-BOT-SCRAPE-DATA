@@ -8,7 +8,7 @@ const http = require('http');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 // Reproduces the operator screenshot's table structure verbatim.
 const TABLE_HTML = `<!doctype html><html><body>
@@ -40,7 +40,10 @@ const TABLE_HTML = `<!doctype html><html><body>
 </body></html>`;
 
 async function main() {
-  execSync('NODE_OPTIONS="--max-old-space-size=4096" npx tsc -p tsconfig.main.json', { stdio: 'inherit' });
+  execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '-p', 'tsconfig.main.json'], {
+    cwd: path.resolve(__dirname, '..'), stdio: 'inherit',
+    env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=4096' },
+  });
   const { HTMLMapper } = require('../dist/main/main/services/html-mapper');
   const { initializeLogger } = require('../dist/main/main/services/logger-service');
   const tmpLogs = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-'));
@@ -53,7 +56,7 @@ async function main() {
   await new Promise(r => server.listen(0, r));
   const url = `http://127.0.0.1:${server.address().port}/`;
 
-  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || chromium.executablePath(), headless: true, args: ['--no-sandbox'] });
   try {
     const page = await browser.newPage();
     await page.goto(url);
@@ -94,11 +97,11 @@ async function main() {
     } else {
       results.failed++; results.notes.push(`FAIL: no rejection for invalid-amount row`);
     }
-    const missingUser = result.rejections.find(r => r.reason.includes('User Name') && r.resolved);
+    const missingUser = result.rejections.find(r => r.code === 'MISSING_REQUIRED_FIELD' && r.missingFields.includes('USER_NAME') && !('resolved' in r));
     if (missingUser) {
-      results.passed++; results.notes.push(`PASS: missing-user row rejected with resolved-fields diagnostic`);
+      results.passed++; results.notes.push(`PASS: missing-user row rejected with sanitized missing-field diagnostic`);
     } else {
-      results.failed++; results.notes.push(`FAIL: no rejection with resolved fields for missing user`);
+      results.failed++; results.notes.push(`FAIL: no sanitized rejection for missing user`);
     }
 
     // Assertion 4: header-driven column resolution works (verified indirectly by
@@ -111,13 +114,16 @@ async function main() {
   } finally {
     await browser.close();
     server.close();
-    fs.rmSync(tmpLogs, { recursive: true, force: true });
+    // Stop and flush rotating transports before removing this test's private directory.
+    await logger.close();
+    await fs.promises.rm(tmpLogs, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    require('assert').strictEqual(fs.existsSync(tmpLogs), false, 'temporary logs must be removed after logger shutdown');
   }
 
   console.log('\n=== BUG #4 verification ===');
   for (const n of results.notes) console.log('  •', n);
   console.log(`\nPASSED: ${results.passed}   FAILED: ${results.failed}`);
-  process.exit(results.failed === 0 ? 0 : 1);
+  process.exitCode = results.failed === 0 ? 0 : 1;
 }
 
 main().catch(e => { console.error(e); process.exit(2); });

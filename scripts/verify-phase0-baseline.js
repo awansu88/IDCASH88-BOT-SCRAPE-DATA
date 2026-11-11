@@ -31,7 +31,7 @@ function scannerPage(pages) {
 }
 async function scan(pages, duplicateCheck, max=10) {
   const {page,state}=scannerPage(pages); const scanner=new PageScanner(page);
-  scanner.htmlMapper={parseCurrentPage:async()=>({transactions:pages[state.i],rejections:[],rowsDetected:pages[state.i].length})};
+  scanner.htmlMapper={parseCurrentPage:async()=>({trusted:true, transactions:pages[state.i],rejections:[],rowsDetected:pages[state.i].length})};
   scanner.setDuplicateCheck(duplicateCheck); return scanner.scanPages({name:'Sanitized profile'},max);
 }
 (async () => {

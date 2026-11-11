@@ -68,7 +68,7 @@ function scannerHarness(duplicateCheck, hasNext = false) {
   const events = [];
   const scanner = new PageScanner({ url: () => 'https://example.invalid/deposit/transactions?page=1' });
   scanner.htmlMapper = { parseCurrentPage: async () => { events.push('parse'); return {
-    transactions: [raw('legacy')], rowsDetected: 1, rejections: [] }; } };
+    trusted: true, transactions: [raw('legacy')], rowsDetected: 1, rejections: [] }; } };
   scanner.getActivePageFromDom = async () => 1;
   scanner.hasNextPage = async () => { events.push('navigation-check'); return hasNext; };
   scanner.navigateAndVerify = async () => { events.push('navigation-click'); scanner.setShouldStop(() => true); };

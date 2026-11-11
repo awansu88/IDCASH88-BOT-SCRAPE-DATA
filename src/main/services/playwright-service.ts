@@ -1,6 +1,7 @@
 import { chromium, APIRequestContext, BrowserContext, Page } from 'playwright';
 import { AppDirectoryManager } from './app-directory-manager';
 import { getLogger } from './logger-service';
+import { profileTag } from '../../utils/safe-diagnostics';
 import { SELECTORS } from '../../utils/selector-repository';
 import { formatPanelDate } from '../../utils/date-utils';
 import { resolveChromium, applyChromiumResolution, showBrowserNotFoundDialog } from './browser-resolver';
@@ -22,9 +23,9 @@ export class PlaywrightService {
   private context: BrowserContext | null = null;
   private page: Page | null = null;
   
-  constructor(private appDirManager: AppDirectoryManager) {}
+  constructor(private appDirManager: Pick<AppDirectoryManager, 'getBrowserProfileDir' | 'getScreenshotsDir' | 'getLogsDir'>) {}
   
-  async launch(panelUrl?: string): Promise<Page> {
+  async launch(panelUrl?: string, options: { headless?: boolean; serviceWorkers?: 'block' } = {}): Promise<Page> {
     const logger = getLogger();
     logger.info('Launching browser...');
     
@@ -38,12 +39,12 @@ export class PlaywrightService {
     const chromiumRes = resolveChromium();
     if (chromiumRes.ok) {
       applyChromiumResolution(chromiumRes);
-      logger.info(`Chromium resolved for launch: ${chromiumRes.source} → ${chromiumRes.browsersPath}`);
-      logger.info(`  executable: ${chromiumRes.executable}`);
+      logger.info(`Chromium resolved for launch: ${chromiumRes.source} pathTag=${profileTag(chromiumRes.browsersPath)}`);
+      logger.info(`  executableAvailable: ${Boolean(chromiumRes.executable)}`);
     } else {
       logger.error('Chromium not resolvable at launch time. Presenting the friendly dialog.');
       for (const s of chromiumRes.searched) {
-        logger.warn(`  probed ${s.label}: ${s.path} (exists=${s.exists}, hasChromium=${s.hasChromium})`);
+        logger.warn(`  probed ${s.label}: pathTag=${profileTag(s.path)} (exists=${s.exists}, hasChromium=${s.hasChromium})`);
       }
       // Show the friendly dialog and throw a clean, translated error.
       // The renderer / IPC caller receives this instead of Playwright's
@@ -82,7 +83,8 @@ export class PlaywrightService {
     // window is resized just like a normal Chrome window.
     try {
       this.context = await chromium.launchPersistentContext(userDataDir, {
-        headless: false,
+        headless: options.headless ?? false,
+        ...(options.serviceWorkers ? { serviceWorkers: options.serviceWorkers } : {}),
         executablePath: chromiumRes.executable || undefined,
         viewport: null,
         args: [
@@ -199,12 +201,12 @@ export class PlaywrightService {
     if (!this.page) throw new Error('Browser not launched');
     
     const logger = getLogger();
-    logger.info(`Navigating to deposit page: ${depositUrl}`);
+    logger.info('Navigating to deposit page');
     try {
       await this.page.goto(depositUrl, { waitUntil: 'networkidle', timeout: 30000 });
       await this.page.waitForSelector(SELECTORS.TABLE.MAIN, { state: 'visible', timeout: 10000 });
     } catch (error: any) {
-      logger.error(`Failed to load deposit page (${depositUrl})`, error);
+      logger.error('Failed to load deposit page');
       throw error;
     }
   }
@@ -236,26 +238,26 @@ export class PlaywrightService {
       if (!resolvedPayment) {
         logger.warn(
           '\n[FILTER PROFILE]\n' +
-          `  Profile : ${label}\n` +
+          `  Profile : ${profileTag(label)}\n` +
           `  Status  : NOT AVAILABLE\n` +
           `  Action  : SKIPPED\n` +
           '  Continuing with remaining enabled profiles...'
         );
         throw this.profileUnavailable(
-          `Deposit Type "${filter.depositType}" is not present in the panel — profile "${label}" skipped (no fallback).`,
+          `Deposit Type "${profileTag(filter.depositType)}" is not present in the panel — profile "${profileTag(label)}" skipped (no fallback).`,
           label,
           filter.depositType
         );
       }
       logger.diag(
         'Legacy Payment Resolution:\n' +
-        `  requested=${String(filter.depositType).trim()}\n` +
-        `  canonicalValue=${resolvedPayment.value}\n` +
+        `  requested=${profileTag(String(filter.depositType).trim())}\n` +
+        `  canonicalValue=${profileTag(resolvedPayment.value)}\n` +
         `  source=${resolvedPayment.source}`
       );
       logger.info(
         '\n[FILTER PROFILE]\n' +
-        `  Profile : ${label}\n` +
+        `  Profile : ${profileTag(label)}\n` +
         `  Status  : AVAILABLE\n` +
         '  Search executed.\n' +
         '  Monitoring continues normally.'
@@ -278,23 +280,22 @@ export class PlaywrightService {
     } catch { /* fields may not exist yet — surfaced below */ }
     
     logger.info(
-      `Applying filter: ${label} (agent=${filter.agent || '*'}, type=${filter.depositType || '*'}, ` +
+      `Applying filter: ${profileTag(label)} (agent=${profileTag(filter.agent)}, type=${profileTag(filter.depositType)}, ` +
       `dateMode=${manualDateMode ? 'MANUAL' : 'AUTO'}, ` +
-      `browserFrom="${browserFrom}", browserTo="${browserTo}")`
+      `browserFromSet="${Boolean(browserFrom)}", browserToSet="${Boolean(browserTo)}")`
     );
     
     logger.diag(
       [
         '--------------------------------------------------',
         'FILTER DIAGNOSTIC',
-        `Profile        : ${label}`,
+        `Profile        : ${profileTag(label)}`,
         `Date Mode      : ${manualDateMode ? 'MANUAL (operator-selected)' : 'AUTO (today)'}`,
-        `Browser From   : "${browserFrom}"`,
-        `Browser To     : "${browserTo}"`,
+        `Browser From Set: "${Boolean(browserFrom)}"`,
+        `Browser To Set  : "${Boolean(browserTo)}"`,
         `Auto Target    : ${today}`,
-        `Agent          : ${filter.agent || '(any)'}`,
-        `Deposit Type   : ${filter.depositType || '(any)'}`,
-        `Current URL    : ${this.page.url()}`,
+        `Agent          : ${profileTag(filter.agent)}`,
+        `Deposit Type   : ${profileTag(filter.depositType)}`,
         '--------------------------------------------------'
       ].join('\n')
     );
@@ -328,10 +329,10 @@ export class PlaywrightService {
           // engine skips this profile and never fires Search with a
           // wrong Deposit Type.
           logger.warn(
-            `Deposit type "${filter.depositType}" became unselectable during apply — treating as NOT AVAILABLE. ${e?.message || ''}`
+            `Deposit type "${profileTag(filter.depositType)}" became unselectable during apply — treating as NOT AVAILABLE.`
           );
           throw this.profileUnavailable(
-            `Deposit Type "${filter.depositType}" is no longer selectable — profile "${label}" skipped (no fallback).`,
+            `Deposit Type "${profileTag(filter.depositType)}" is no longer selectable — profile "${profileTag(label)}" skipped (no fallback).`,
             label,
             filter.depositType
           );
@@ -345,11 +346,11 @@ export class PlaywrightService {
         if (!browserFrom || !browserTo) {
           throw this.cycleFatal(
             `Manual date mode: browser has empty dates ` +
-            `(From="${browserFrom}", To="${browserTo}"). ` +
+            `(From="${Boolean(browserFrom)}", To="${Boolean(browserTo)}"). ` +
             `Please select Date From and Date To in the browser before starting monitoring.`
           );
         }
-        logger.info(`Manual date mode: using operator-selected From=${browserFrom} To=${browserTo}`);
+        logger.info(`Manual date mode: using operator-selected From=${Boolean(browserFrom)} To=${Boolean(browserTo)}`);
       } else {
         // AUTO — populate both dates and verify.
         await this.fillAndVerifyDate(SELECTORS.FILTER.DATE_FROM, today, 'Date From');
@@ -368,19 +369,19 @@ export class PlaywrightService {
       try {
         await this.page.waitForSelector(SELECTORS.TABLE.MAIN, { state: 'visible', timeout: 10000 });
       } catch (error: any) {
-        logger.error(`Search result timeout: deposit table did not appear within 10s (selector "${SELECTORS.TABLE.MAIN}")`, error);
+        logger.error(`Search result timeout: deposit table did not appear within 10s (selector "${SELECTORS.TABLE.MAIN}")`);
         throw error;
       }
       await this.page.waitForTimeout(1000);
       
-      logger.success(`Filter applied: ${label}`);
+      logger.success(`Filter applied: ${profileTag(label)}`);
     } catch (error: any) {
       // Profile-availability skip: NOT an application error. Do not log
       // as "Failed to apply filter" (that already happened via the
       // [FILTER PROFILE] warning) and re-throw so the engine can move
       // to the next enabled profile without treating it as a bug.
       if (error && (error as any).isProfileUnavailable) throw error;
-      logger.error(`Failed to apply filter: ${label}`, error);
+      logger.error(`Failed to apply filter: ${profileTag(label)}`);
       // Preserve the CYCLE-FATAL tag so the engine can abort the cycle
       // instead of moving on to the next filter with a broken search state.
       if (error && (error as any).isCycleFatal) throw error;
@@ -404,13 +405,13 @@ export class PlaywrightService {
     try {
       await this.page.fill(SELECTORS.FILTER.AGENT_INPUT, '', { timeout: 2000 });
     } catch (e: any) {
-      logger.debug(`Agent field reset skipped: ${e?.message || e}`);
+      logger.debug('Agent field reset skipped');
     }
     try {
       // Force back to the engine's invariant: only Approved rows are monitored.
       await this.page.selectOption(SELECTORS.FILTER.DEPOSIT_STATUS, 'Approve', { timeout: 2000 });
     } catch (e: any) {
-      logger.debug(`Status reset skipped: ${e?.message || e}`);
+      logger.debug('Status reset skipped');
     }
     try {
       // Clear deposit-type to its default option. selectOption('') selects
@@ -420,7 +421,7 @@ export class PlaywrightService {
       try {
         await this.page.selectOption(SELECTORS.FILTER.DEPOSIT_TYPE, { index: 0 }, { timeout: 2000 });
       } catch (e: any) {
-        logger.debug(`Deposit type reset skipped: ${e?.message || e}`);
+        logger.debug('Deposit type reset skipped');
       }
     }
   }
@@ -450,14 +451,14 @@ export class PlaywrightService {
     try {
       await page.waitForSelector(selector, { state: 'visible', timeout: 5000 });
     } catch (error: any) {
-      throw this.cycleFatal(`${label}: input not visible ("${selector}") within 5s — panel structure may have changed. ${error?.message || ''}`);
+      throw this.cycleFatal(`${label}: input not visible ("${selector}") within 5s — panel structure may have changed.`);
     }
 
     // 1. Standard fill (fires native input + change events).
     try {
       await page.fill(selector, value);
     } catch (error: any) {
-      throw this.cycleFatal(`${label}: could not fill "${selector}" — ${error?.message || error}`);
+      throw this.cycleFatal(`${label}: could not fill "${selector}"`);
     }
 
     // 2. Notify jQuery-datepicker plugin (no-op on plain inputs).
@@ -478,11 +479,11 @@ export class PlaywrightService {
     try {
       readBack = await page.inputValue(selector);
     } catch (error: any) {
-      throw this.cycleFatal(`${label}: could not read back "${selector}" — ${error?.message || error}`);
+      throw this.cycleFatal(`${label}: could not read back "${selector}"`);
     }
     if (!readBack || readBack.trim() !== value) {
       throw this.cycleFatal(
-        `${label}: value did not persist after fill (selector="${selector}", attempted="${value}", readback="${readBack || '(empty)'}") — cannot start search`
+        `${label}: value did not persist after fill (selector="${selector}", valueMatched=false) — cannot start search`
       );
     }
   }
@@ -535,7 +536,7 @@ export class PlaywrightService {
       return null;
     } catch (e: any) {
       getLogger().warn(
-        `Deposit Type availability probe failed for "${target}" — treating as NOT AVAILABLE. ${e?.message || e}`
+        `Deposit Type availability probe failed for "${profileTag(target)}" — treating as NOT AVAILABLE.`
       );
       return null;
     }

@@ -8,6 +8,7 @@ import {
 import { RawHttpHtmlParser, RawHttpResponseClassification as Classification } from './raw-http-html-parser';
 import type { PageStats, ScanTerminationReason, SourceAdapter, SourceScanRequest, SourceScanResult } from './source-adapter';
 import { getLogger } from '../services/logger-service';
+import { depositDiagnostics } from './deposit-page-parser';
 
 type FastHttpResponse = Pick<APIResponse, 'status' | 'url' | 'text'> & { headers?: () => Record<string, string> };
 export interface FastHttpRequestContext {
@@ -135,7 +136,11 @@ export class FastHttpSourceAdapter implements SourceAdapter {
       if (pageNumber === 1 && firstRequest.method === 'POST') this.logFirstPostResponse(response, finalUrl, parsed);
       if (parsed.classification === Classification.LOGIN_PAGE) return result('SESSION_EXPIRED', true);
       if (parsed.classification !== Classification.DEPOSIT_TABLE
-        && parsed.classification !== Classification.EMPTY_DEPOSIT_TABLE) return result('UNSAFE_RESPONSE', true);
+        && parsed.classification !== Classification.EMPTY_DEPOSIT_TABLE) {
+        try { getLogger().warn(`Untrusted FAST deposit page=${pageNumber} ${JSON.stringify(depositDiagnostics(parsed, { pageNumber, profileId: request.filter.id || request.filter.name }))}`); }
+        catch { /* isolated adapter tests may not initialize logging */ }
+        return result('UNSAFE_RESPONSE', true);
+      }
 
       let duplicate = 0;
       if (!request.initialSyncMode) {
@@ -189,11 +194,9 @@ export class FastHttpSourceAdapter implements SourceAdapter {
 
   private logFirstPostResponse(response: FastHttpResponse, finalUrl: URL,
     parsed: ReturnType<RawHttpHtmlParser['parse']>): void {
-    let contentType = '';
-    try { contentType = response.headers?.()['content-type'] || ''; } catch { /* diagnostic metadata is optional */ }
     try {
-      getLogger().diag(`FAST first response method=POST status=${response.status()} finalPath=${finalUrl.pathname}`
-        + ` contentType=${contentType} classification=${parsed.classification} headerCount=${parsed.layout.headerCount}`
+      getLogger().diag(`FAST first response method=POST status=${response.status()}`
+        + ` classification=${parsed.classification} headerCount=${parsed.layout.headerCount}`
         + ` rowsDetected=${parsed.rowsDetected} recognizedLayout=${parsed.layout.recognized}`);
     } catch { /* logger may not be initialized in isolated adapter tests */ }
   }

@@ -50,7 +50,11 @@ assert.strictEqual(result.transactions[0].accountNumber, 'TEST_NESTED');
 missingAccount(parse('<td><span data-bank="TEST_BANK_ONLY"></span></td>'));
 
 // G: canonical attributes outside the mapped account cell are not searched.
-missingAccount(parse('<td></td>', { paymentCell: '<td data-bank-number="TEST_ELSEWHERE"></td>' }));
+const misplacedCanonical = parse('<td></td>', { paymentCell: '<td data-bank-number="TEST_ELSEWHERE"></td>' });
+assert.strictEqual(misplacedCanonical.transactions.length, 0);
+assert.strictEqual(misplacedCanonical.classification, C.UNKNOWN_LAYOUT);
+assert.strictEqual(misplacedCanonical.rejections[0].code, E.SCHEMA_CONFLICT);
+assert.deepStrictEqual(misplacedCanonical.rejections[0].conflicts, ['ACCOUNT_NUMBER']);
 
 // H: duplicate descendants with one unique value are accepted.
 result = parse('<td><span data-bank-number="TEST_SAME"></span><i data-bank-number=" TEST_SAME "></i></td>');

@@ -1,4 +1,5 @@
 import type { ScanTerminationReason } from '../sources/source-adapter';
+import { profileTag, diagnosticCode } from '../../utils/safe-diagnostics';
 import type { SourceMode } from '../../types/source-mode';
 
 export type MonitoringFailureAction = 'RETRY' | 'PAUSE';
@@ -26,7 +27,7 @@ export class MonitoringCycleSourceError extends Error {
     public readonly filterName: string,
     public readonly rowsHandedOff: number,
   ) {
-    super(`Source scan failed (${terminationReason}) for filter "${filterName}"`);
+    super(`Source scan failed (${diagnosticCode(terminationReason)}) profileTag=${profileTag(filterName)}`);
     this.name = 'MonitoringCycleSourceError';
     Object.setPrototypeOf(this, MonitoringCycleSourceError.prototype);
   }

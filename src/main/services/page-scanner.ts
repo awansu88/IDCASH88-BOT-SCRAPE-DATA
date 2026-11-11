@@ -2,8 +2,10 @@ import { Page } from 'playwright';
 import { RawTransaction } from '../../types/transaction';
 import { FilterProfile } from '../../types/filter-profile';
 import { HTMLMapper } from './html-mapper';
+import { depositDiagnostics, RawHttpResponseClassification } from '../sources/deposit-page-parser';
 import { SELECTORS } from '../../utils/selector-repository';
 import { getLogger } from './logger-service';
+import { profileTag } from '../../utils/safe-diagnostics';
 import { extractPageNumber, urlHasPageMarker } from '../../utils/date-utils';
 import type { PageStats, ScanTerminationReason, SourcePageBatch, SourceScanResult } from '../sources/source-adapter';
 
@@ -85,7 +87,7 @@ export class PageScanner {
     let lastPageScanned = 0;
     let scanned = 0;
     
-    logger.info(`Starting scan for filter: ${filter.name} (maxPageScan=${maxPages})`);
+    logger.info(`Starting scan for profileTag=${profileTag(filter.name)} (maxPageScan=${maxPages})`);
     
     while (scanned < maxPages) {
       // Honour Stop Monitoring immediately — exit the loop cleanly BEFORE
@@ -106,6 +108,15 @@ export class PageScanner {
       
       // Parse rows
       const parse = await this.htmlMapper.parseCurrentPage();
+      if (parse.trusted !== true) {
+        // Reject the entire current page BEFORE duplicate checks, onPage, or navigation.
+        // Earlier trusted pages stay in the aggregate/durable handoff contract.
+        logger.warn(`Untrusted deposit page=${currentBrowserPage} ${JSON.stringify(depositDiagnostics(parse, { pageNumber: currentBrowserPage, profileId: filter.id || filter.name }))}`);
+        navigationFailure = true;
+        terminationReason = parse.snapshotFailed ? 'BROWSER_FAILURE'
+          : parse.classification === RawHttpResponseClassification.LOGIN_PAGE ? 'SESSION_EXPIRED' : 'UNSAFE_RESPONSE';
+        break;
+      }
       logger.info(`Rows found on page ${currentBrowserPage}: ${parse.transactions.length}`);
       
       // Diagnostic block: Table
@@ -113,10 +124,11 @@ export class PageScanner {
         [
           '--------------------------------------------------',
           'TABLE DIAGNOSTIC',
+          `Profile Tag   : ${profileTag(filter.name)}`,
+          `URL Available : ${Boolean(currentUrl)}`,
           `Current Page  : ${currentBrowserPage}`,
           `URL Page      : ${urlPage ?? '(no marker)'}`,
           `DOM Page      : ${domPage ?? '(not found)'}`,
-          `Current URL   : ${currentUrl}`,
           `Rows Detected : ${parse.rowsDetected}`,
           `Rows Parsed   : ${parse.transactions.length}`,
           `Rows Rejected : ${parse.rejections.length}`,
@@ -228,12 +240,12 @@ export class PageScanner {
       } catch (error: any) {
         if (error && error.endOfPagination === true) {
           logger.info(
-            `Pagination widget did not advance past page ${currentBrowserPage} — treating as End Of Pagination (${error.message}).`
+            `Pagination widget did not advance past page ${currentBrowserPage} — treating as End Of Pagination.`
           );
           terminationReason = 'END_OF_PAGINATION';
           break;
         }
-        logger.error(`Pagination failed while moving to page ${expected}`, error);
+        logger.error(`Pagination failed while moving to page ${expected}`);
         navigationFailure = true;
         terminationReason = error && error.browserFailure === true
           ? 'BROWSER_FAILURE'
@@ -242,9 +254,8 @@ export class PageScanner {
       }
     }
     
-    logger.success(
-      `Pagination completed: scanned ${scanned} page(s), found ${allTransactions.length} new transaction(s)`
-    );
+    if (navigationFailure) logger.warn(`Pagination aborted: reason=${terminationReason} trustedPages=${scanned}`);
+    else logger.success(`Pagination completed: scanned ${scanned} page(s), found ${allTransactions.length} new transaction(s)`);
     
     return {
       transactions: allTransactions,
@@ -370,7 +381,7 @@ export class PageScanner {
         }
       );
     } catch (e) {
-      getLogger().warn('Failed to inspect pagination Next button', e);
+      getLogger().warn('Failed to inspect pagination Next button');
       return false;
     }
   }
@@ -487,8 +498,7 @@ export class PageScanner {
       await this.page.waitForSelector(SELECTORS.TABLE.MAIN, { state: 'visible', timeout: 10000 });
     } catch (error: any) {
       logger.error(
-        `Timeout waiting for deposit table on page ${expected} (selector "${SELECTORS.TABLE.MAIN}", 10s)`,
-        error
+        `Timeout waiting for deposit table on page ${expected} (selector "${SELECTORS.TABLE.MAIN}", 10s)`
       );
     }
     try {
@@ -514,8 +524,6 @@ export class PageScanner {
     const diagBlock = [
       '--------------------------------------------------',
       'PAGINATION DIAGNOSTIC',
-      'Current Browser URL',
-      actualUrl,
       `Expected Page   : ${expected}`,
       `URL Page        : ${urlPage ?? '(no marker)'}`,
       `DOM Widget Page : ${domPage ?? '(not found)'}`,
@@ -540,7 +548,7 @@ export class PageScanner {
         (urlPage === null || urlPage === fromPage) &&
         actualUrl === fromUrl;
       logger.error(
-        `Navigation verification failed. Expected page ${expected}, URL=${urlPage ?? 'n/a'}, DOM=${domPage ?? 'n/a'}. URL: ${actualUrl}`
+        `Navigation verification failed. Expected page ${expected}, URL=${urlPage ?? 'n/a'}, DOM=${domPage ?? 'n/a'}.`
       );
       if (pagerStuck) {
         const err: any = new Error(
@@ -550,7 +558,7 @@ export class PageScanner {
         throw err;
       }
       const err: any = new Error(
-        `Navigation verification failed: expected ${expected}, urlPage=${urlPage ?? 'n/a'}, domPage=${domPage ?? 'n/a'} (${actualUrl})`
+        `Navigation verification failed: expected ${expected}, urlPage=${urlPage ?? 'n/a'}, domPage=${domPage ?? 'n/a'}`
       );
       err.isCycleFatal = true;
       throw err;

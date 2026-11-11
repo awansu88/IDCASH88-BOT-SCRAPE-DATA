@@ -6,6 +6,12 @@
   "author": "Deposit Monitor Team",
   "license": "MIT",
   "scripts": {
+    "test": "npm run build && npm run typecheck:renderer && node scripts/run-tests.js",
+    "typecheck:renderer": "tsc --noEmit -p tsconfig.renderer.json",
+    "validate:read-only": "npm run build:main && node scripts/validate-read-only.js",
+    "test:release-readiness": "node scripts/verify-release-readiness.js",
+    "test:read-only": "node scripts/verify-read-only-validation.js",
+    "test:historical": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/verify-historical.js",
     "postinstall": "electron-builder install-app-deps",
     "rebuild": "electron-builder install-app-deps",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
@@ -31,6 +37,10 @@
     "dist": "npm run build && npm run prepack:portable && electron-builder --win --x64 && npm run portable:summary",
     "dist:portable": "npm run build && npm run prepack:portable && electron-builder --win portable --x64 && npm run portable:summary",
     "clean": "rimraf dist dist-build",
+    "test:adaptive-deposit:sqlite": "npm run build:main && cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/verify-adaptive-deposit-sqlite.js",
+    "test:logging-redaction": "npm run build:main && node scripts/verify-sensitive-logging.js",
+    "test:adaptive-deposit": "npm run build:main && node scripts/verify-adaptive-deposit-parser.js",
+    "test:deposit-dom": "npm run build:main && node scripts/verify-deposit-dom-resilience.js",
     "test:phase4:html-parser": "npm run build:main && node scripts/verify-phase4-html-parser.js",
     "test:phase5:parser-parity": "npm run build:main && node scripts/verify-phase5-parser-parity.js",
     "test:phase6:fast-http": "npm run build:main && node scripts/verify-phase6-fast-http-worker.js",
@@ -105,8 +115,7 @@
             "x64"
           ]
         }
-      ],
-      "icon": "assets/icon.ico"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -122,7 +131,8 @@
       "dist/**/*",
       "node_modules/**/*",
       "package.json",
-      "resources/**/*"
+      "resources/**/*",
+      "!resources/browsers/**/*"
     ],
     "extraResources": [
       {

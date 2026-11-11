@@ -51,7 +51,22 @@ const frozenBackend = [
   'src/main/ipc-handlers.ts',
   'src/main/preload.ts',
 ];
-assert(!changed.some(file => frozenBackend.includes(file) || file.startsWith('src/main/sources/')));
+// Phase 2 authorizes shared parsing, fail-safe acquisition and diagnostic redaction.
+// Pin those exact reviewed implementations while retaining all other restrictions.
+const phase2Baselines = {
+  "src/main/services/monitoring-failure-policy.ts": "9db506b7f5b9a8f74a83f009ca4e4bfecc294ff27ac07aa86ae5f25fa8da0ecb",
+  "src/main/services/monitoring-engine.ts": "7c0c61f9c33062a9c4e30e373d34ef09318add6f910adbb467792a458c63e1d7",
+  "src/main/sources/raw-http-html-parser.ts": "b6ea15f76bdb299827369a0639a86f76265641ebe4349dc79b200c39417a7a68",
+  "src/main/sources/fast-http-source-adapter.ts": "ac2cf0d7b93e74f995c36c8b2b7726ba2bb82154708dd76f24c613ffc3bca33d",
+  "src/main/sources/deposit-column-resolver.ts": "44c63370864c602a330d83810b3c1ff4bb456e95c8a4a4a47ed8aa4b18383bbe",
+  "src/main/sources/deposit-page-parser.ts": "384fb9d3c9607ca52bf2d750ff35fbda5ada1f1fcfd0e31635fee744fdb44f8d"
+};
+for (const [file, expected] of Object.entries(phase2Baselines)) {
+  assert.strictEqual(require('crypto').createHash('sha256').update(
+    fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/\r\n/g, '\n')).digest('hex'), expected);
+}
+assert(!changed.some(file => !phase2Baselines[file] && (frozenBackend.includes(file) ||
+  (file.startsWith('src/main/sources/') && file !== 'src/main/sources/deposit-table-layouts.ts'))));
 assert(!changed.some(file => /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$/.test(file)));
 assert(!changed.some(file => /(^|\/)(schema|schemas|migrations)(\/|$)/i.test(file)));
 
