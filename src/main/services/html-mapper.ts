@@ -259,6 +259,18 @@ export class HTMLMapper {
     const read = async (key: ColumnKey): Promise<string> => {
       const idx = layout.map[key];
       if (idx === undefined || idx === OMITTED) return '';
+      if (key === 'ACCOUNT_NUMBER') {
+        const cell = cells[idx];
+        if (!cell) return '';
+        const descendants = await cell.$$(SELECTORS.ACCOUNT_NUMBER.CANONICAL);
+        const values = await Promise.all([cell, ...descendants].map(element =>
+          element.getAttribute(SELECTORS.ACCOUNT_NUMBER.ATTRIBUTE)));
+        const canonical = [...new Set(values.filter((value): value is string =>
+          Boolean(value?.trim())).map(value => value.trim()))];
+        if (canonical.length === 1) return canonical[0];
+        // Reject ambiguity through the existing required-field check.
+        if (canonical.length > 1) return '';
+      }
       return this.getCellText(cells, idx);
     };
 

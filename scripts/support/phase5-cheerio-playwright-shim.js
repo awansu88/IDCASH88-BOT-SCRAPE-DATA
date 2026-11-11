@@ -6,6 +6,7 @@ function createCheerioPage(html) {
   const snapshot = node => Object.freeze({ textContent: $(node).text(), outerHTML: $.html(node) });
   const handle = node => ({
     $$(selector) { return Promise.resolve($(node).find(selector).toArray().map(handle)); },
+    getAttribute(name) { return Promise.resolve($(node).attr(name) ?? null); },
     textContent() { return Promise.resolve($(node).text()); },
     evaluate(callback) { return Promise.resolve(callback(snapshot(node))); }
   });

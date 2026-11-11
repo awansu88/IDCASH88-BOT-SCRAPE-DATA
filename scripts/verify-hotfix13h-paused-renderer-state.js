@@ -51,7 +51,9 @@ const frozenBackend = [
   'src/main/ipc-handlers.ts',
   'src/main/preload.ts',
 ];
-assert(!changed.some(file => frozenBackend.includes(file) || file.startsWith('src/main/sources/')));
+// Phase 1 DOM compatibility explicitly extends only the shared layout registry.
+assert(!changed.some(file => frozenBackend.includes(file) ||
+  (file.startsWith('src/main/sources/') && file !== 'src/main/sources/deposit-table-layouts.ts')));
 assert(!changed.some(file => /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$/.test(file)));
 assert(!changed.some(file => /(^|\/)(schema|schemas|migrations)(\/|$)/i.test(file)));
 

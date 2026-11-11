@@ -18,6 +18,16 @@ export interface DepositTableLayout {
 /** Shared frozen registry used by both the Legacy and raw-HTML parsers. */
 export const DEPOSIT_TABLE_LAYOUTS: readonly DepositTableLayout[] = [
   {
+    headerCount: 18, bodyCount: 16,
+    name: '18H/16B — Destination row with Payment Type omitted',
+    // Destination occupies body index 5. Index 6 preserves the registry's
+    // positional PAYMENT_ID slot; it is not a verified transaction identifier.
+    map: { SEQUENCE: 0, USER_NAME: 1, BANK: 2, ACCOUNT_NAME: 3,
+      ACCOUNT_NUMBER: 4, PAYMENT_ID: 6, CURRENCY: 7, AMOUNT: 8,
+      STATUS: 9, EXTERNAL_ID: 10, DONE: 11, DEPOSIT_TYPE: 12,
+      PAYMENT_TYPE: OMITTED_COLUMN, AGENT: 13, PROCESS_DATE: 14, CREATED_AT: 15 }
+  },
+  {
     headerCount: 17, bodyCount: 15,
     name: '17H/15B — production standard row (Payment Type + col-17 omitted)',
     map: { SEQUENCE: 0, USER_NAME: 1, BANK: 2, ACCOUNT_NAME: 3,

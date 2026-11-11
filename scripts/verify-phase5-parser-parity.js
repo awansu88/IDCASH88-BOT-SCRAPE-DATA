@@ -73,10 +73,10 @@ function compareRejections(name, legacy, raw, expected) {
   let result = await parseBoth(html);
   compareTransactions('Cases D-E — exact keys and visible account', result.legacy.transactions, result.raw.transactions);
 
-  // F: the sole allowed representation difference remains normalized/fingerprint equal.
+  // F: canonical account representation now agrees exactly in both parsers.
   result = await parseBoth(fixture('layout-17h-15b.html'));
-  assert.notStrictEqual(result.legacy.transactions[0].accountNumber, result.raw.transactions[0].accountNumber);
-  compareTransactions('Case F — INTENTIONAL_NORMALIZED_ACCOUNT_PARITY', result.legacy.transactions, result.raw.transactions, true);
+  assert.strictEqual(result.legacy.transactions[0].accountNumber, result.raw.transactions[0].accountNumber);
+  compareTransactions('Case F — canonical account parity', result.legacy.transactions, result.raw.transactions, true);
 
   // G-H: amount and bounded ordinary-text normalization.
   for (const [input, expected] of [['100,763.00',100763],['IDR 100,763.00',100763],['100763',100763],['100763.49',100763],['100763.50',100764]]) {
@@ -158,12 +158,12 @@ function compareRejections(name, legacy, raw, expected) {
   assert.notStrictEqual(canonicalHash('const x = 1;\n'), canonicalHash('const x = 2;\n'), 'canonical hashes must detect source changes');
   assert(/import \{[\s\S]*DEPOSIT_TABLE_LAYOUTS[\s\S]*\} from ['"]\.\.\/sources\/deposit-table-layouts['"]/.test(read('src/main/services/html-mapper.ts')));
   const frozenHashes = {
-    'src/main/services/html-mapper.ts':'78f501d07670699bc6b2baf1ef48906373174cc1e93dae412cb436485b209842',
+    'src/main/sources/deposit-table-layouts.ts':'f91b96e7de840e47281dc5ab1ca45990cd16fab983ebc184c6382abde1dca67e',
+    'src/main/services/html-mapper.ts':'b4d61badb08db8e640d6868f46c7184881960010bf4dfd3a2dd327d10cb7965b',
     'src/main/sources/raw-http-html-parser.ts':'a38c495d944d2482dc75eddcb4a0196874f32f4c49717e65398fdece28b6df4c',
-    'src/main/sources/deposit-table-layouts.ts':'c09445148f94d71e3ed987379a1bbd338a38d164512b585153202a40a8a65dd2',
     'src/main/services/fingerprint-generator.ts':'e1a6764de4fb56e7c9e33609b05d7c715f7b9987a164622a360f16be2167b1f2'
   };
-  for (const [file, expected] of Object.entries(frozenHashes)) assert.strictEqual(canonicalHash(read(file)), expected, `${file} changed from Phase 4`);
+  for (const [file, expected] of Object.entries(frozenHashes)) assert.strictEqual(canonicalHash(read(file)), expected, `${file} changed from verified parser baseline`);
   for (const file of ['src/main/services/monitoring-engine.ts','src/main/sources/legacy-browser-source-adapter.ts']) assert(!read(file).includes('RawHttpHtmlParser'), `${file} must not wire RawHttpHtmlParser`);
   // Phase 6 intentionally adds a dormant FAST adapter. Phase 5's production-impact
   // freeze now guards the original invariant: neither parser nor FAST is default-wired.
@@ -172,5 +172,5 @@ function compareRejections(name, legacy, raw, expected) {
   for (const forbidden of [/\bfetch\s*\(/,/from ['"]axios['"]/,/\bcontext\.request\b/,/\bbrowserContext\.request\b/,/\/deposit\/transactions/]) assert(!forbidden.test(production), `forbidden HTTP API ${forbidden}`);
 
   console.log('Phase 5 parser parity passed (Cases A-T).');
-  console.log('Intentional results: INTENTIONAL_NORMALIZED_ACCOUNT_PARITY; INTENTIONAL_RAW_STRICTER_DIVERGENCE.');
+  console.log('Intentional results: CANONICAL_ACCOUNT_PARITY; INTENTIONAL_RAW_STRICTER_DIVERGENCE.');
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

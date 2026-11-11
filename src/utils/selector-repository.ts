@@ -13,6 +13,11 @@ export const SELECTORS = {
     ROWS: 'table.table.table-striped.b-t tbody tr',
   },
   
+  ACCOUNT_NUMBER: {
+    ATTRIBUTE: 'data-bank-number',
+    CANONICAL: '[data-bank-number]',
+  },
+
   COLUMNS: {
     SEQUENCE: 1,
     USER_NAME: 2,
