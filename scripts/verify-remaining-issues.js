@@ -10,7 +10,7 @@ const http = require('http');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 // Production-shaped table: 17 header columns, 15 body cells per row.
 // Two header columns are body-less. Production evidence: HTMLCollection(15).
@@ -101,7 +101,10 @@ async function withPage(html, fn) {
 }
 
 async function main() {
-  execSync('NODE_OPTIONS="--max-old-space-size=4096" npx tsc -p tsconfig.main.json', { stdio: 'inherit' });
+  execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '-p', 'tsconfig.main.json'], {
+    cwd: path.resolve(__dirname, '..'), stdio: 'inherit',
+    env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=4096' },
+  });
   const { HTMLMapper } = require('../dist/main/main/services/html-mapper');
   const { PlaywrightService } = require('../dist/main/main/services/playwright-service');
   const { initializeLogger } = require('../dist/main/main/services/logger-service');

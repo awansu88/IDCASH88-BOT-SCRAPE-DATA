@@ -8,7 +8,7 @@ const http = require('http');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 // Reproduces the operator screenshot's table structure verbatim.
 const TABLE_HTML = `<!doctype html><html><body>
@@ -40,7 +40,10 @@ const TABLE_HTML = `<!doctype html><html><body>
 </body></html>`;
 
 async function main() {
-  execSync('NODE_OPTIONS="--max-old-space-size=4096" npx tsc -p tsconfig.main.json', { stdio: 'inherit' });
+  execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '-p', 'tsconfig.main.json'], {
+    cwd: path.resolve(__dirname, '..'), stdio: 'inherit',
+    env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=4096' },
+  });
   const { HTMLMapper } = require('../dist/main/main/services/html-mapper');
   const { initializeLogger } = require('../dist/main/main/services/logger-service');
   const tmpLogs = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-'));

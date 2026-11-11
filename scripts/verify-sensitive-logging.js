@@ -158,19 +158,29 @@ async function fastCases(){
     assert.strictEqual(result.terminationReason,scenario==='valid'?'MAX_SCAN_REACHED':scenario==='login'?'SESSION_EXPIRED':'UNSAFE_RESPONSE');check();
   }
 }
+// Ignore only checkout newline conversion; every other source byte remains protected.
+const normalizeNewlines=source=>source.replace(/\r\n/g,'\n');
+function assertProtected(actual,expected,message){
+  assert.strictEqual(normalizeNewlines(actual),normalizeNewlines(expected),message);
+}
 (async()=>{
+  const sample='const protectedValue = 1;\n// keep whitespace\n';
+  assertProtected(sample.replace(/\n/g,'\r\n'),sample);
+  assertProtected(sample,sample.replace(/\n/g,'\r\n'));
+  for(const changed of [sample.replace('1','2'),sample.replace(' = ','='),sample+'\n',sample.replace(/\n/g,'\r')])
+    assert.throws(()=>assertProtected(changed,sample),assert.AssertionError,'real source edits must fail integrity checks');
   const reviewed='d63b003cc8cafe634ff86e9c4fc46edebf003917';
   const baseline=file=>execFileSync('git',['show',`${reviewed}:${file}`],{cwd:root,encoding:'utf8'});
   for(const file of ['src/main/sources/deposit-column-resolver.ts','src/main/sources/deposit-table-layouts.ts',
     'src/main/services/fingerprint-generator.ts','src/main/services/central-ingest-service.ts','src/main/services/sqlite-service.ts',
     'src/main/services/database-migration.ts','src/main/services/google-sheets-service.ts','src/main/services/pending-export-recovery.ts',
     'src/main/sources/raw-http-html-parser.ts','src/main/sources/fast-http-source-adapter.ts'])
-    assert.strictEqual(fs.readFileSync(path.join(root,file),'utf8'),baseline(file),'protected implementation changed: '+file);
+    assertProtected(fs.readFileSync(path.join(root,file),'utf8'),baseline(file),'protected implementation changed: '+file);
   const parserFile='src/main/sources/deposit-page-parser.ts';
   const pureBody=source=>source.slice(source.indexOf('function amount('),source.indexOf('/** Allowlisted structural diagnostics'));
-  assert.strictEqual(pureBody(fs.readFileSync(path.join(root,parserFile),'utf8')),pureBody(baseline(parserFile)));
+  assertProtected(pureBody(fs.readFileSync(path.join(root,parserFile),'utf8')),pureBody(baseline(parserFile)));
   const policyFile='src/main/services/monitoring-failure-policy.ts';
-  assert.strictEqual(fs.readFileSync(path.join(root,policyFile),'utf8').split('const PAUSE_REASONS')[1],baseline(policyFile).split('const PAUSE_REASONS')[1]);
+  assertProtected(fs.readFileSync(path.join(root,policyFile),'utf8').split('const PAUSE_REASONS')[1],baseline(policyFile).split('const PAUSE_REASONS')[1]);
   await browserCases();await engineCases();await filterCases();await configurationCases();await fastCases();check();
   for(const structural of ['TABLE DIAGNOSTIC','PAGINATION DIAGNOSTIC','URL Available','UNSAFE_RESPONSE','SESSION_EXPIRED','action=RETRY reason=HTTP_FAILURE'])
     assert(logs.join('\n').includes(structural),'safe debugging metadata missing: '+structural);
