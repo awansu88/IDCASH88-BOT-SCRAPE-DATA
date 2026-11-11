@@ -1,5 +1,5 @@
 import { CheerioAPI } from 'cheerio';
-import { createHash } from 'crypto';
+import { profileTag } from '../../utils/safe-diagnostics';
 import { RawTransaction } from '../../types/transaction';
 import { DEPOSIT_TABLE_LAYOUTS, DepositColumnKey, REQUIRED_DEPOSIT_FIELDS } from './deposit-table-layouts';
 import { DepositCell, normalizeText, resolveDepositColumns, safeColumnLabel,
@@ -166,7 +166,7 @@ export function parseDepositDocument($: CheerioAPI): DepositPageResult {
 export function depositDiagnostics(result: DepositPageResult, context?: { pageNumber: number; profileId: string }): object {
   return { classification: result.classification, code: result.pageErrorCode,
     ...(context ? { pageNumber: context.pageNumber,
-      profileTag: createHash('sha256').update(context.profileId).digest('hex').slice(0, 12) } : {}),
+      profileTag: profileTag(context.profileId) } : {}),
     headerCount: result.layout.headerCount, headerLabels: result.layout.headerLabels.slice(0, 64),
     bodyCounts: [...new Set(result.layout.bodyCounts)].slice(0, 64),
     strategies: result.layout.strategies, signature: result.layout.signature,

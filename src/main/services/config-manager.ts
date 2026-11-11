@@ -4,6 +4,7 @@ import { FilterProfile } from '../../types/filter-profile';
 import { GoogleSheetsConfig } from '../../types/google-sheets';
 import { AppDirectoryManager } from './app-directory-manager';
 import { getLogger } from './logger-service';
+import { diagnosticError } from '../../utils/safe-diagnostics';
 import { DEFAULT_CONFIG } from '../../utils/constants';
 
 export class ConfigManager {
@@ -22,7 +23,7 @@ export class ConfigManager {
       const configData = fs.readFileSync(configPath, 'utf8');
       return JSON.parse(configData);
     } catch (error) {
-      getLogger().error('Failed to load app configuration', error);
+      getLogger().error('Failed to load app configuration', diagnosticError(error));
       return this.getDefaultConfig();
     }
   }
@@ -45,7 +46,7 @@ export class ConfigManager {
       const profilesData = fs.readFileSync(profilesPath, 'utf8');
       return JSON.parse(profilesData);
     } catch (error) {
-      getLogger().error('Failed to load filter profiles', error);
+      getLogger().error('Failed to load filter profiles', diagnosticError(error));
       return [];
     }
   }
@@ -69,7 +70,7 @@ export class ConfigManager {
       }
       return config;
     } catch (error) {
-      getLogger().error('Failed to load Google Sheets configuration', error);
+      getLogger().error('Failed to load Google Sheets configuration', diagnosticError(error));
       return null;
     }
   }

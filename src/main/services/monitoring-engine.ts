@@ -9,6 +9,7 @@ import { SQLiteService } from './sqlite-service';
 import { GoogleSheetsService } from './google-sheets-service';
 import { ConfigManager } from './config-manager';
 import { getLogger } from './logger-service';
+import { profileTag, diagnosticCode, diagnosticCount, diagnosticError } from '../../utils/safe-diagnostics';
 import { AppConfig } from '../../types/config';
 import { PendingExportRecovery, PendingRecoveryResult } from './pending-export-recovery';
 import type { SourceAdapter } from '../sources/source-adapter';
@@ -150,7 +151,7 @@ export class MonitoringEngine {
     // production source of truth.
     this.resumeMarker = await this.sqliteService.getResumeMarker();
     if (this.resumeMarker) {
-      logger.info(`Resume Marker loaded from SQLite: ${this.resumeMarker}`);
+      logger.info('Resume Marker loaded from SQLite');
     } else {
       logger.info('Resume Marker: none in SQLite (fresh install or first run).');
     }
@@ -186,7 +187,7 @@ export class MonitoringEngine {
     if (session.ok) {
       getLogger().success('Manual login validated');
     } else {
-      getLogger().warn(`Login validation failed: ${session.reason}`);
+      getLogger().warn('Login validation failed');
     }
 
     const requestedMode = normalizeSourceMode(this.config?.monitoring.sourceMode);
@@ -295,7 +296,7 @@ export class MonitoringEngine {
       logger.info(
         '\n========== RESUME MARKER ==========\n' +
         `  Source           : SQLite (Sheets not connected)\n` +
-        `  Loaded KEY_ID    : ${this.resumeMarker || '(none)'}\n` +
+        `  Loaded KEY_ID    : ${this.resumeMarker ? 'present' : 'none'}\n` +
         `  Sync Result      : SKIPPED (offline start)\n` +
         `  Resume Ready     : true\n` +
         '===================================='
@@ -308,13 +309,13 @@ export class MonitoringEngine {
     if (sheetsKeyId && sheetsKeyId !== this.resumeMarker) {
       source = 'Google Sheets';
       syncResult = this.resumeMarker
-        ? `RESYNCED (SQLite="${this.resumeMarker}" → Sheets="${sheetsKeyId}")`
-        : `RESYNCED (SQLite=(none) → Sheets="${sheetsKeyId}")`;
+        ? 'RESYNCED (SQLite present → Sheets present)'
+        : 'RESYNCED (SQLite absent → Sheets present)';
       this.resumeMarker = sheetsKeyId;
       await this.sqliteService.saveResumeMarker(sheetsKeyId);
     } else if (!sheetsKeyId && this.resumeMarker) {
       source = 'Google Sheets';
-      syncResult = `RESYNCED (SQLite="${this.resumeMarker}" → Sheets=(empty)) — full scan next cycle`;
+      syncResult = 'RESYNCED (SQLite present → Sheets empty) — full scan next cycle';
       this.resumeMarker = null;
       // Wipe the stale marker so subsequent runs don't stop early.
       await this.sqliteService.saveResumeMarker('');
@@ -325,7 +326,7 @@ export class MonitoringEngine {
     logger.info(
       '\n========== RESUME MARKER ==========\n' +
       `  Source           : ${source}\n` +
-      `  Loaded KEY_ID    : ${this.resumeMarker || '(none)'}\n` +
+      `  Loaded KEY_ID    : ${this.resumeMarker ? 'present' : 'none'}\n` +
       `  Sync Result      : ${syncResult}\n` +
       `  Resume Ready     : true\n` +
       '===================================='
@@ -354,15 +355,15 @@ export class MonitoringEngine {
         const context = error as { requestedMode?: SourceMode; effectiveMode?: SourceMode; filterName?: string; rowsHandedOff?: number };
         const policyFailure = await this.normalizeRuntimeControlFailure(error);
         const decision = this.failurePolicy.decide(policyFailure, context);
-        const modeFields = `requested=${context.requestedMode || 'UNKNOWN'} effective=${context.effectiveMode || 'UNKNOWN'}`;
+        const modeFields = `requested=${diagnosticCode(context.requestedMode)} effective=${diagnosticCode(context.effectiveMode)}`;
         const sourceFields = context.filterName
-          ? ` filter=${context.filterName} rowsHandedOff=${context.rowsHandedOff ?? 0}` : '';
+          ? ` profileTag=${profileTag(context.filterName)} rowsHandedOff=${diagnosticCount(context.rowsHandedOff)}` : '';
         if (decision.action === 'PAUSE') {
           this.pauseReason = decision.reason;
           this.isRunning = false;
           this.setState('PAUSED');
           getLogger().error(
-            `[MONITORING FAILURE] action=PAUSE reason=${decision.reason} ${modeFields}${sourceFields}. ` +
+            `[MONITORING FAILURE] action=PAUSE reason=${diagnosticCode(decision.reason)} ${modeFields}${sourceFields}. ` +
             'Fix the condition (login manually if required), then click Start again.',
             this.safeError(error),
           );
@@ -370,7 +371,7 @@ export class MonitoringEngine {
         }
         this.setState('ERROR');
         getLogger().error(
-          `[MONITORING FAILURE] action=RETRY reason=${decision.reason} consecutive=${decision.consecutiveFailures} ` +
+          `[MONITORING FAILURE] action=RETRY reason=${diagnosticCode(decision.reason)} consecutive=${decision.consecutiveFailures} ` +
           `retryInMs=${decision.retryInMs} ${modeFields}${sourceFields}`,
           this.safeError(error),
         );
@@ -436,7 +437,7 @@ export class MonitoringEngine {
         `batchSize=${this.config.monitoring.batchSize}`
       );
     } catch (e: any) {
-      getLogger().warn(`Config reload failed — using previous in-memory config. ${e?.message || e}`);
+      getLogger().warn('Config reload failed — using previous in-memory config.', this.safeError(e));
     }
 
     // Resolve once and retain the exact source for the entire cycle. Injected
@@ -447,7 +448,7 @@ export class MonitoringEngine {
       : this.sourceModeSelector!.selectForCycle(this.config?.monitoring.sourceMode);
     const cycleSource = selection.source;
     const concurrency = sourceConcurrency(cycleSource);
-    getLogger().info(`[SOURCE MODE] requested=${selection.requestedMode} effective=${selection.effectiveMode} reason=${selection.reason} concurrency=${concurrency}`);
+    getLogger().info(`[SOURCE MODE] requested=${diagnosticCode(selection.requestedMode)} effective=${diagnosticCode(selection.effectiveMode)} reason=${diagnosticCode(selection.reason)} concurrency=${concurrency}`);
 
     // One cycle-triggered attempt only; failures are retained in SQLite and
     // bounded backoff prevents API hammering on subsequent polling cycles.
@@ -500,7 +501,7 @@ export class MonitoringEngine {
           if (error && error.isProfileUnavailable) {
             unavailableByIndex[index] = filter.name;
             getLogger().warn(
-              `[FILTER PROFILE] ${filter.name} — NOT AVAILABLE, SKIPPED. Continuing with remaining enabled profiles...`
+              `[FILTER PROFILE] ${profileTag(filter.name)} — NOT AVAILABLE, SKIPPED. Continuing with remaining enabled profiles...`
             );
             continue;
           }
@@ -509,10 +510,10 @@ export class MonitoringEngine {
           if (error?.isCycleFatal || concurrency > 1) {
             groupAbortRequested = true;
             fatalError ??= error;
-            getLogger().error(`Cycle aborted (fatal): ${filter.name}`, this.safeError(error));
+            getLogger().error(`Cycle aborted (fatal): ${profileTag(filter.name)}`, this.safeError(error));
             return;
           }
-          getLogger().error(`Filter error: ${filter.name}`, this.safeError(error));
+          getLogger().error(`Filter error: ${profileTag(filter.name)}`, this.safeError(error));
         }
       }
     };
@@ -662,11 +663,11 @@ export class MonitoringEngine {
     const duplicateThisFilter = result.perPage.reduce((sum, page) => sum + page.duplicate, 0);
     getLogger().info(
       '\n========== PAGINATION SUMMARY ==========\n' +
-      `  Filter Profile        : ${filter.name}\n` +
+      `  Profile Tag           : ${profileTag(filter.name)}\n` +
       `  Configured Max Page   : ${result.configuredMaxPage}\n` +
       `  Available Pages       : ${result.terminationReason === 'END_OF_PAGINATION' ? String(result.lastPageScanned) : `(not fully explored, stopped at ${result.lastPageScanned})`}\n` +
       `  Pages Scanned         : ${result.perPage.length}\n` +
-      `  Termination Reason    : ${result.terminationReason}\n` +
+      `  Termination Reason    : ${diagnosticCode(result.terminationReason)}\n` +
       `  Transactions Buffered : ${result.transactions.length}\n` +
       `  Transactions Exported : ${bufferedThisFilter} (queued — actual Sheets append reported in pipeline audit)\n` +
       `  Rows Parsed / Rejected : ${parsedThisFilter} / ${rejectedThisFilter}\n` +
@@ -681,7 +682,7 @@ export class MonitoringEngine {
     // STOP_REQUESTED are all normal terminations.
     if (result.navigationFailure) {
       getLogger().warn(
-        `Filter "${filter.name}" ended with ${result.terminationReason} — ` +
+        `Filter "${profileTag(filter.name)}" ended with ${diagnosticCode(result.terminationReason)} — ` +
         `${result.transactions.length} row(s) already handed off to the pipeline before abort.`
       );
       throw new MonitoringCycleSourceError(
@@ -707,7 +708,7 @@ export class MonitoringEngine {
           '========================',
           'ESSENTIAL FIELD CHECK',
           '========================',
-          `Filter Profile: ${filter.name}`,
+          `Profile Tag: ${profileTag(filter.name)}`,
           '--------------------------------',
           `Transaction #${this.cycleCounters.parsed}`,
           `Result  : REJECTED`,
@@ -823,12 +824,6 @@ export class MonitoringEngine {
 
   /** Keep operator diagnostics useful without copying arbitrary error payloads or URLs into logs. */
   private safeError(error: unknown): Error {
-    const value = error as { name?: unknown; code?: unknown; terminationReason?: unknown } | null;
-    const name = typeof value?.name === 'string' ? value.name : 'Error';
-    const reason = typeof value?.terminationReason === 'string' ? value.terminationReason
-      : typeof value?.code === 'string' ? value.code : 'UNKNOWN';
-    const safe = new Error(`${name} (${reason})`);
-    safe.name = name;
-    return safe;
+    return diagnosticError(error);
   }
 }

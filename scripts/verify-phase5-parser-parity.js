@@ -164,7 +164,7 @@ function compareRejections(name, legacy, raw, expected) {
   assert(read('src/main/sources/raw-http-html-parser.ts').includes('parseDepositDocument'));
   assert(read('src/main/sources/deposit-page-parser.ts').includes('resolveDepositColumns'));
   const frozenHashes = {
-    'src/main/sources/deposit-page-parser.ts': 'e6573ef210032b6d5d80e17cc0b5f2162472329dcfd0b294d57e6c07c7d44b45',
+    'src/main/sources/deposit-page-parser.ts': '384fb9d3c9607ca52bf2d750ff35fbda5ada1f1fcfd0e31635fee744fdb44f8d',
     'src/main/sources/deposit-column-resolver.ts': '44c63370864c602a330d83810b3c1ff4bb456e95c8a4a4a47ed8aa4b18383bbe',
     'src/main/sources/deposit-table-layouts.ts': 'f91b96e7de840e47281dc5ab1ca45990cd16fab983ebc184c6382abde1dca67e',
     'src/main/services/html-mapper.ts': 'ef1730c222bbc45d29ffc9d0eb1c84203fc7ecd955724ed281aa4f875d0777a1',

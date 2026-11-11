@@ -5,6 +5,7 @@ import { HTMLMapper } from './html-mapper';
 import { depositDiagnostics, RawHttpResponseClassification } from '../sources/deposit-page-parser';
 import { SELECTORS } from '../../utils/selector-repository';
 import { getLogger } from './logger-service';
+import { profileTag } from '../../utils/safe-diagnostics';
 import { extractPageNumber, urlHasPageMarker } from '../../utils/date-utils';
 import type { PageStats, ScanTerminationReason, SourcePageBatch, SourceScanResult } from '../sources/source-adapter';
 
@@ -86,7 +87,7 @@ export class PageScanner {
     let lastPageScanned = 0;
     let scanned = 0;
     
-    logger.info(`Starting scan for filter: ${filter.name} (maxPageScan=${maxPages})`);
+    logger.info(`Starting scan for profileTag=${profileTag(filter.name)} (maxPageScan=${maxPages})`);
     
     while (scanned < maxPages) {
       // Honour Stop Monitoring immediately — exit the loop cleanly BEFORE
@@ -123,6 +124,8 @@ export class PageScanner {
         [
           '--------------------------------------------------',
           'TABLE DIAGNOSTIC',
+          `Profile Tag   : ${profileTag(filter.name)}`,
+          `URL Available : ${Boolean(currentUrl)}`,
           `Current Page  : ${currentBrowserPage}`,
           `URL Page      : ${urlPage ?? '(no marker)'}`,
           `DOM Page      : ${domPage ?? '(not found)'}`,
@@ -237,7 +240,7 @@ export class PageScanner {
       } catch (error: any) {
         if (error && error.endOfPagination === true) {
           logger.info(
-            `Pagination widget did not advance past page ${currentBrowserPage} — treating as End Of Pagination (${error.message}).`
+            `Pagination widget did not advance past page ${currentBrowserPage} — treating as End Of Pagination.`
           );
           terminationReason = 'END_OF_PAGINATION';
           break;
@@ -495,8 +498,7 @@ export class PageScanner {
       await this.page.waitForSelector(SELECTORS.TABLE.MAIN, { state: 'visible', timeout: 10000 });
     } catch (error: any) {
       logger.error(
-        `Timeout waiting for deposit table on page ${expected} (selector "${SELECTORS.TABLE.MAIN}", 10s)`,
-        error
+        `Timeout waiting for deposit table on page ${expected} (selector "${SELECTORS.TABLE.MAIN}", 10s)`
       );
     }
     try {
