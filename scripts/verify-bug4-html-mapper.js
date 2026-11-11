@@ -114,13 +114,16 @@ async function main() {
   } finally {
     await browser.close();
     server.close();
-    fs.rmSync(tmpLogs, { recursive: true, force: true });
+    // Stop and flush rotating transports before removing this test's private directory.
+    await logger.close();
+    await fs.promises.rm(tmpLogs, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    require('assert').strictEqual(fs.existsSync(tmpLogs), false, 'temporary logs must be removed after logger shutdown');
   }
 
   console.log('\n=== BUG #4 verification ===');
   for (const n of results.notes) console.log('  •', n);
   console.log(`\nPASSED: ${results.passed}   FAILED: ${results.failed}`);
-  process.exit(results.failed === 0 ? 0 : 1);
+  process.exitCode = results.failed === 0 ? 0 : 1;
 }
 
 main().catch(e => { console.error(e); process.exit(2); });

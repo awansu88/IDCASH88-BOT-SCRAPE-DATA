@@ -112,6 +112,7 @@ async function main() {
   const logger = initializeLogger(tmpLogs);
   logger.setDiagEnabled(true);
 
+  try {
   const results = { passed: 0, failed: 0, notes: [] };
 
   // ============================================================
@@ -244,8 +245,13 @@ document.getElementById('ff').addEventListener('submit', function(e){ e.preventD
   console.log('\n=== REMAINING ISSUES verification ===');
   for (const n of results.notes) console.log('  •', n);
   console.log(`\nPASSED: ${results.passed}   FAILED: ${results.failed}`);
-  fs.rmSync(tmpLogs, { recursive: true, force: true });
-  process.exit(results.failed === 0 ? 0 : 1);
+  process.exitCode = results.failed === 0 ? 0 : 1;
+  } finally {
+    // Also release logs if an assertion throws; never race an active transport.
+    await logger.close();
+    await fs.promises.rm(tmpLogs, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    require('assert').strictEqual(fs.existsSync(tmpLogs), false, 'temporary logs must be removed after logger shutdown');
+  }
 }
 
 main().catch(e => { console.error(e); process.exit(2); });
