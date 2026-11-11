@@ -14,7 +14,7 @@ function instrument(page){let calls=0;
 const handle=el=>({$$:async(...args)=>{calls++;return(await el.$$(...args)).map(handle);},getAttribute:async(...args)=>{calls++;return el.getAttribute(...args);},
  textContent:async()=>{calls++;return el.textContent();},evaluate:async(...args)=>{calls++;return el.evaluate(...args);}});
 return {page:{$$:async(...args)=>{calls++;return(await page.$$(...args)).map(handle);},$$eval:async(...args)=>{calls++;return page.$$eval(...args);},content:async()=>{calls++;return page.content();}},calls:()=>calls};}
-(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true});const result={fixtureRows:20};
+(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||chromium.executablePath(),headless:true});const result={fixtureRows:20};
 try{const page=await browser.newPage();await page.setContent(html);
 for(const [name,Mapper]of [['phase1',OldBrowser],['phase2',NewBrowser]]){const inst=instrument(page),mapper=new Mapper(inst.page);await mapper.parseCurrentPage();const times=[];let lastCalls=inst.calls();let output;
 for(let i=0;i<7;i++){const t=performance.now();output=await mapper.parseCurrentPage();times.push(performance.now()-t);}

@@ -236,13 +236,13 @@ function rows(userNames) {
     </tr></thead>`;
     const ROW = `
       <tr>
-        <td>5</td><td>honda1338</td><td>bca</td><td>sapriyanto tangkudung</td>
-        <td>797-618-1505</td><td>honda1338</td><td>IDR</td><td>100,763.00</td>
+        <td>5</td><td>fixture_user_001</td><td>bca</td><td>FICTIONAL HOLDER 001</td>
+        <td>900-000-000001</td><td>fixture_user_001</td><td>IDR</td><td>100,763.00</td>
         <td>Approved</td><td>50623679-pga-6a626f3b27c5f</td><td>Yes</td><td>PGA</td>
         <td>N/A</td><td>2026-07-24 02:45:43</td><td>2026-07-24 02:45:00</td>
       </tr>`;
     const html = `<!doctype html><html><body><table class="table table-striped b-t">${HEAD}<tbody>${ROW}</tbody></table></body></html>`;
-    const b = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+    const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || chromium.executablePath(), headless: true, args: ['--no-sandbox'] });
     const p = await b.newPage();
     await p.setContent(html);
     const parsed = await new HTMLMapper(p).parseCurrentPage();

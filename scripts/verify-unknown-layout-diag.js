@@ -45,7 +45,7 @@ const html = `<!doctype html><html><body>
   });
 
   const { HTMLMapper } = require(path.join(distMain, 'services', 'html-mapper.js'));
-  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || chromium.executablePath(), headless: true, args: ['--no-sandbox'] });
   const page = await browser.newPage();
   await page.setContent(html);
 

@@ -78,7 +78,7 @@ function realSelector() { return 'tbody tr td[data-label="Account Number"]'; }
   assert.strictEqual(unknown.browser.transactions.length,0);
   assert.strictEqual(unknown.browser.rejections.length,1);
   // Verify the actual DOM adapter, including nested markup and attributes.
-  const browser = await chromium.launch({executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless:true});
+  const browser = await chromium.launch({executablePath: process.env.CHROMIUM_PATH || chromium.executablePath(), headless:true});
   try {
     const page = await browser.newPage();
     acceptance(await both(html,page));

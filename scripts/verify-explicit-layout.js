@@ -1,5 +1,5 @@
 // Static verification of the (17H, 15B) explicit production layout using
-// the exact HTML the operator captured on 2026-07-24. Runs against the
+// a sanitized production-shaped fixture. Runs against the
 // compiled parser via a lightweight Playwright chromium instance driven
 // against a data:text/html URL — no real network, no real deposit panel.
 
@@ -18,15 +18,15 @@ const HEAD = `
   </tr></thead>
 `;
 
-// Operator-provided sample row (15 body cells; PAYMENT_TYPE + col-17 omitted).
+// Sanitized sample row (15 body cells; PAYMENT_TYPE + col-17 omitted).
 const SAMPLE_ROW = `
   <tr>
     <td>5</td>
-    <td><a class="opennew" href="#">honda1338</a></td>
+    <td><a class="opennew" href="#">fixture_user_001</a></td>
     <td>bca</td>
-    <td>sapriyanto tangkudung</td>
-    <td><span data-bank="bca" data-bank-number="7976181505" class="bank-accnumber">797-618-1505</span></td>
-    <td>honda1338</td>
+    <td>FICTIONAL HOLDER 001</td>
+    <td><span data-bank="bca" data-bank-number="900000000001" class="bank-accnumber">900-000-000001</span></td>
+    <td>fixture_user_001</td>
     <td>IDR</td>
     <td>100,763.00</td>
     <td>Approved</td>
@@ -72,7 +72,7 @@ const html = `<!doctype html><html><body>
 
   const { HTMLMapper } = require(path.join(distMain, 'services', 'html-mapper.js'));
 
-  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || chromium.executablePath(), headless: true, args: ['--no-sandbox'] });
   const page = await browser.newPage();
   await page.setContent(html);
 
@@ -87,10 +87,10 @@ const html = `<!doctype html><html><body>
 
   const t = result.transactions[0];
   const expected = {
-    userName: 'honda1338',
+    userName: 'fixture_user_001',
     bank: 'bca',
-    accountName: 'sapriyanto tangkudung',
-    accountNumber: '797-618-1505',
+    accountName: 'FICTIONAL HOLDER 001',
+    accountNumber: '900000000001',
     amount: 100763,
     status: 'Approved',
     done: 'Yes',

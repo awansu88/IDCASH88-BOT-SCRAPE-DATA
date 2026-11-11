@@ -195,7 +195,7 @@ async function boundaries() {
   for(const [name,html,classification]of cases){const r=await parseBoth(html);assert.strictEqual(r.fast.classification,classification,name);
     if(classification===C.DEPOSIT_TABLE&&!name.startsWith('B '))assert.deepStrictEqual(r.fast.transactions,expected,name);
     console.log('PASS:',name);}
-  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true});
+  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||chromium.executablePath(),headless:true});
   try{const page=await browser.newPage();for(const [name,html,classification]of cases){
     const r=await parseBoth(html,page);assert.strictEqual(r.fast.classification,classification,'Chromium '+name);
   }}finally{await browser.close();}

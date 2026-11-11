@@ -7,10 +7,8 @@
  * Responsibilities:
  *   1. Inspect the `dist-build/win-unpacked/` staging directory produced
  *      by electron-builder BEFORE it seals it into the Portable.exe.
- *      That folder is a byte-accurate preview of what ends up inside
- *      the portable executable, so verifying it here is equivalent to
- *      verifying the final .exe (and dramatically faster than
- *      extracting the shipped .exe).
+ *      This checks the staged resources only; it does not establish final
+ *      archive integrity or native Windows execution.
  *   2. Confirm the packaged tree contains:
  *          resources/browsers/chromium-<rev>/chrome-win/chrome.exe
  *   3. Locate the final Portable.exe and compute its size.
@@ -76,23 +74,12 @@ function findChromiumFolder(root) {
   return null;
 }
 
-/**
- * Locate the artefact that represents the portable executable. In
- * electron-builder land, the file is at:
- *   dist-build/<ProductName>-Portable.exe   (when `portable.artifactName`
- *                                             is set — our build.json does this)
- *   dist-build/*Portable*.exe               (fallback pattern)
- * Fallback to any *.exe in dist-build/ if the naming policy changes.
- */
+/** Accept only the configured portable artifact; an NSIS setup is not a substitute. */
 function findPortableExe() {
   if (!isDir(BUILD_DIR)) return null;
-  const candidates = fs.readdirSync(BUILD_DIR)
-    .filter(n => n.toLowerCase().endsWith('.exe'))
-    .map(n => path.join(BUILD_DIR, n))
-    .filter(p => isFile(p));
-  if (candidates.length === 0) return null;
-  const portable = candidates.find(p => /portable/i.test(path.basename(p)));
-  return portable || candidates[0];
+  const expected = require(path.join(REPO_ROOT, 'package.json')).build.portable.artifactName;
+  const artifact = path.join(BUILD_DIR, expected);
+  return isFile(artifact) ? artifact : null;
 }
 
 // -----------------------------------------------------------------------------
@@ -135,6 +122,15 @@ function findPortableExe() {
       `Expected: ${chromeExe}`
     ].join('\n'));
   }
+
+  // Verify the packaged copies, not only the source tree checked before packing.
+  const runtime = ['chrome.dll', 'chrome_100_percent.pak', 'resources.pak',
+    'v8_context_snapshot.bin', 'icudtl.dat'];
+  const missingRuntime = runtime.filter(name => {
+    const file = path.join(path.dirname(chromeExe), name);
+    return !isFile(file) || fs.statSync(file).size === 0;
+  });
+  if (missingRuntime.length) fail(`Packaged Chromium runtime files missing: ${missingRuntime.join(', ')}`);
 
   // Sizes.
   const browserBytes = measureTree(packagedChromium.full);
@@ -179,7 +175,7 @@ function findPortableExe() {
   log(`  \u2713 Browser version        ${browserVersion}`);
   log(`  \u2713 Browser path           ${relBrowserPath}`);
   log(`  \u2713 Resources copied       ${path.relative(UNPACKED_DIR, resourcesRoot).replace(/\\/g, '/') || 'resources/'}`);
-  log(`  \u2713 Portable verified      ${portableName}`);
+  log(`  ${portableExe ? "✓" : "✗"} Portable artifact      ${portableName}`);
   log('');
   log(`  Build size              ${mb(buildBytes)}`);
   log(`  Browser size            ${mb(browserBytes)}`);

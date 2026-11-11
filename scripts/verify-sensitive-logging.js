@@ -42,7 +42,7 @@ async function browserCases(){
     res.setHeader('Content-Type','text/html');res.end((page===1?fixture:pages[scenario])+pager);
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true});
+  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||chromium.executablePath(),headless:true});
   try{const page=await browser.newPage();
     for(const scenario of ['valid','schema','missing','login']){
       const url=new URL(sensitiveUrl);url.protocol='http:';url.host=`127.0.0.1:${server.address().port}`;url.searchParams.set('case',scenario);url.searchParams.set('page','1');

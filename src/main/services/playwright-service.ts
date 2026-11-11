@@ -23,9 +23,9 @@ export class PlaywrightService {
   private context: BrowserContext | null = null;
   private page: Page | null = null;
   
-  constructor(private appDirManager: AppDirectoryManager) {}
+  constructor(private appDirManager: Pick<AppDirectoryManager, 'getBrowserProfileDir' | 'getScreenshotsDir' | 'getLogsDir'>) {}
   
-  async launch(panelUrl?: string): Promise<Page> {
+  async launch(panelUrl?: string, options: { headless?: boolean; serviceWorkers?: 'block' } = {}): Promise<Page> {
     const logger = getLogger();
     logger.info('Launching browser...');
     
@@ -83,7 +83,8 @@ export class PlaywrightService {
     // window is resized just like a normal Chrome window.
     try {
       this.context = await chromium.launchPersistentContext(userDataDir, {
-        headless: false,
+        headless: options.headless ?? false,
+        ...(options.serviceWorkers ? { serviceWorkers: options.serviceWorkers } : {}),
         executablePath: chromiumRes.executable || undefined,
         viewport: null,
         args: [

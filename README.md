@@ -288,3 +288,12 @@ MIT License
 - Never logs credentials, tokens, or sensitive data
 - Service account credentials stored locally (never transmitted)
 - Read-only operations on web panel (no writes)
+
+
+## Controlled Windows validation
+
+Run `npm test` for build/typecheck and all package suites. The opt-in standalone
+`npm run validate:read-only -- --help` workflow constructs no database/export engine.
+Follow the [Windows Phase 3 runbook](docs/phase3-windows-live-validation.md) only after
+independent review; production Start Monitoring is not a dry-run. Native Windows
+packaging/execution and controlled live-panel checks remain separate release gates.

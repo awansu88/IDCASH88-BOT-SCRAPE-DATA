@@ -15,7 +15,7 @@ dependency.
 
 | Requirement       | Notes                                              |
 | ----------------- | -------------------------------------------------- |
-| Node.js **≥ 18**  | Ships with npm 10.                                 |
+| Node.js **22 LTS ≥22.12** | Required by the locked Electron rebuild tooling.                                 |
 | Windows **10/11** | Required for producing `dist:portable`.            |
 | Playwright cache  | Located at `%LOCALAPPDATA%\ms-playwright` (default) |
 
@@ -29,7 +29,9 @@ dependency.
 ## 1. Install dependencies
 
 ```powershell
-npm ci
+npm.cmd ci --ignore-scripts
+node .\node_modules\electron\install.js
+npm.cmd run rebuild
 ```
 
 `postinstall` rebuilds `better-sqlite3` for the current Electron
@@ -282,3 +284,11 @@ paths that were probed.
 FingerprintGenerator, Duplicate Detection, SQLite schema, Resume
 Marker, Google Sheets export, and the entire renderer dashboard are
 UNTOUCHED.**
+
+
+## Phase 3 controlled validation
+
+See [Windows operator runbook](docs/phase3-windows-live-validation.md) for isolated
+startup, the opt-in no-write harness, build/test commands, native Windows release
+gates and rollback. Do not use production Start Monitoring as a dry-run: it can
+claim SQLite rows and drain pending Sheets exports.
